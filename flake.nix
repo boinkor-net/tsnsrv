@@ -31,6 +31,7 @@
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
             src = ./.;
+            meta.mainProgram = "tsnsrv";
           };
 
           # To provide a smoother dev experience:
@@ -48,6 +49,11 @@
             subPackages = ["cmd/nardump"];
           };
           default = config.packages.tsnsrv;
+        };
+
+        apps = {
+          tsnsrv.program = config.packages.tsnsrv;
+          default = config.apps.tsnsrv;
         };
         formatter = pkgs.alejandra;
 
