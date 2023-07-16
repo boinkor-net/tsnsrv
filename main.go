@@ -18,19 +18,19 @@ import (
 )
 
 var fs = flag.NewFlagSet("tsnsrv", flag.ExitOnError)
-var downstreamTCPAddr = fs.String("downstreamTCPAddr", "", "Proxy to an HTTP service listening on a TCP address")
-var downstreamUnixAddr = fs.String("downstreamUnixAddr", "", "Proxy to an HTTP service listening on a UNIX domain socket address")
+var downstreamTCPAddr = fs.String("downstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
+var downstreamUnixAddr = fs.String("downstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
 var ephemeral = fs.Bool("ephemeral", false, "Declare this service ephemeral")
-var funnel = fs.Bool("funnel", false, "Whether to expose a funnel service.")
-var funnelOnly = fs.Bool("funnelOnly", false, "Whether to expose a funnel service only (not exposed on the tailnet).")
+var funnel = fs.Bool("funnel", false, "Expose a funnel service.")
+var funnelOnly = fs.Bool("funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
 var listenAddr = fs.String("listenAddr", ":443", "Address to listen on; note only :443, :8443 and :10000 are supported with -funnel.")
 var name = fs.String("name", "", "Name of this service")
-var servePlaintext = fs.Bool("plaintext", false, "Whether to serve plaintext HTTP")
+var servePlaintext = fs.Bool("plaintext", false, "Serve plaintext HTTP without TLS")
 var timeout = fs.Duration("timeout", 1*time.Minute, "Timeout connecting to the tailnet")
 
 func main() {
 	root := ffcli.Command{
-		ShortUsage: "tsnsrv -name <serviceName> [args] <fromPath> <toURL>",
+		ShortUsage: "tsnsrv -name <serviceName> [flags] <fromPath> <toURL>",
 		FlagSet:    fs,
 		Exec: func(ctx context.Context, args []string) error {
 			err := validateFlags()
