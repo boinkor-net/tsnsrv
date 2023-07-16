@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -13,123 +14,164 @@ import (
 	"time"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
 )
 
-var fs = flag.NewFlagSet("tsnsrv", flag.ExitOnError)
-var downstreamTCPAddr = fs.String("downstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
-var downstreamUnixAddr = fs.String("downstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
-var ephemeral = fs.Bool("ephemeral", false, "Declare this service ephemeral")
-var funnel = fs.Bool("funnel", false, "Expose a funnel service.")
-var funnelOnly = fs.Bool("funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
-var listenAddr = fs.String("listenAddr", ":443", "Address to listen on; note only :443, :8443 and :10000 are supported with -funnel.")
-var name = fs.String("name", "", "Name of this service")
-var servePlaintext = fs.Bool("plaintext", false, "Serve plaintext HTTP without TLS")
-var timeout = fs.Duration("timeout", 1*time.Minute, "Timeout connecting to the tailnet")
+type TailnetSrv struct {
+	DownstreamTCPAddr, DownstreamUnixAddr string
+	Ephemeral                             bool
+	Funnel, FunnelOnly                    bool
+	ListenAddr                            string
+	Name                                  string
+	ServePlaintext                        bool
+	Timeout                               time.Duration
+}
 
-func main() {
-	root := ffcli.Command{
+type validTailnetSrv struct {
+	TailnetSrv
+	SourcePath string
+	DestURL    *url.URL
+}
+
+func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
+	s := &TailnetSrv{}
+	var fs = flag.NewFlagSet("tsnsrv", flag.ExitOnError)
+	fs.StringVar(&s.DownstreamTCPAddr, "downstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
+	fs.StringVar(&s.DownstreamUnixAddr, "downstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
+	fs.BoolVar(&s.Ephemeral, "ephemeral", false, "Declare this service ephemeral")
+	fs.BoolVar(&s.Funnel, "funnel", false, "Expose a funnel service.")
+	fs.BoolVar(&s.FunnelOnly, "funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
+	fs.StringVar(&s.ListenAddr, "listenAddr", ":443", "Address to listen on; note only :443, :8443 and :10000 are supported with -funnel.")
+	fs.StringVar(&s.Name, "name", "", "Name of this service")
+	fs.BoolVar(&s.ServePlaintext, "plaintext", false, "Serve plaintext HTTP without TLS")
+	fs.DurationVar(&s.Timeout, "timeout", 1*time.Minute, "Timeout connecting to the tailnet")
+
+	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <fromPath> <toURL>",
 		FlagSet:    fs,
-		Exec: func(ctx context.Context, args []string) error {
-			err := validateFlags()
-			if err != nil {
-				return err
-			}
-			return run(ctx, args)
-		},
+		Exec:       func(context.Context, []string) error { return nil },
 	}
-	if err := root.ParseAndRun(context.Background(), os.Args[1:]); err != nil {
+	if err := root.Parse(args); err != nil {
+		return nil, root, err
+	}
+	valid, err := s.validate(root.FlagSet.Args())
+	if err != nil {
+		return nil, root, err
+	}
+	return valid, root, nil
+}
+
+func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
+	if s.Name == "" {
+		return nil, errors.New("The service needs a -name.")
+	}
+	if s.ServePlaintext && s.Funnel {
+		return nil, errors.New("Can not serve plaintext on a funnel service.")
+	}
+	if s.DownstreamTCPAddr != "" && s.DownstreamUnixAddr != "" {
+		return nil, errors.New("Can only proxy to one address at a time.")
+	}
+	if !s.Funnel && s.FunnelOnly {
+		return nil, errors.New("-funnel is required if -funnelOnly is set.")
+	}
+
+	if len(args) != 2 {
+		return nil, errors.New("tsnsrv requires a source path and a destination URL.")
+	}
+	sourcePath := args[0]
+	if sourcePath == "" {
+		sourcePath = "/"
+	}
+
+	destURL, err := url.Parse(args[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid destination URL %#v: %w", args[1], err)
+	}
+
+	valid := validTailnetSrv{TailnetSrv: *s, DestURL: destURL, SourcePath: sourcePath}
+	return &valid, nil
+}
+
+func main() {
+	s, cmd, err := tailnetSrvFromArgs(os.Args[1:])
+	if err != nil {
+		log.Fatalf("Invalid CLI usage: %v\n%v", err, ffcli.DefaultUsageFunc(cmd))
+	}
+	if err := s.Run(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, args []string) error {
-	if len(args) != 2 {
-		return errors.New("tsnsrv requires a source path and a destination URL.")
-	}
-	sourcePath := args[0]
-	destURL, err := url.Parse(args[1])
+func (s *validTailnetSrv) Run(ctx context.Context) error {
+	l, mux, status, err := s.ListenerAndMux(ctx)
 	if err != nil {
-		log.Fatalf("Invalid destination URL %#v: %v", args[1], err)
+		return err
 	}
+	log.Printf("%s serving on %v, %v%v -> %v (plaintext:%v, funnel:%v, funnelOnly:%v)",
+		s.Name, status.TailscaleIPs, s.ListenAddr, s.SourcePath, s.DestURL, s.ServePlaintext, s.Funnel, s.FunnelOnly)
+	return fmt.Errorf("while serving: %w", http.Serve(l, mux))
+}
 
+func (s *validTailnetSrv) ListenerAndMux(ctx context.Context) (net.Listener, *http.ServeMux, *ipnstate.Status, error) {
 	srv := &tsnet.Server{
-		Hostname:   *name,
+		Hostname:   s.Name,
 		Logf:       logger.Discard,
-		Ephemeral:  *ephemeral,
+		Ephemeral:  s.Ephemeral,
 		ControlURL: os.Getenv("TS_URL"),
 	}
-	ctx, cancel := context.WithTimeout(ctx, *timeout)
+	ctx, cancel := context.WithTimeout(ctx, s.Timeout)
 	defer cancel()
 	status, err := srv.Up(ctx)
 	if err != nil {
-		log.Fatalf("Could not connect to tailnet: %v", err)
+		return nil, nil, nil, fmt.Errorf("could not connect to tailnet: %w", err)
 	}
 
-	l, err := listen(srv)
+	l, err := s.listen(srv)
 	if err != nil {
-		log.Fatalf("Could not listen: %v", err)
+		return nil, nil, nil, fmt.Errorf("could not listen: %w", err)
 	}
 
 	dial := srv.Dial
-	if *downstreamTCPAddr != "" {
+	if s.DownstreamTCPAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-			return srv.Dial(ctx, "tcp", *downstreamTCPAddr)
+			return srv.Dial(ctx, "tcp", s.DownstreamTCPAddr)
 		}
-	} else if *downstreamUnixAddr != "" {
+	} else if s.DownstreamUnixAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{}
-			return d.DialContext(ctx, "unix", *downstreamUnixAddr)
+			return d.DialContext(ctx, "unix", s.DownstreamUnixAddr)
 		}
 	}
 
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetXForwarded()
-			r.SetURL(destURL)
-			log.Printf("Rewrote %v with %v to %v", r.In.URL, destURL, r.Out.URL)
+			r.SetURL(s.DestURL)
+			log.Printf("Rewrote %v with %v to %v", r.In.URL, s.DestURL, r.Out.URL)
 		},
 		Transport: &http.Transport{DialContext: dial},
 	}
 	mux := http.NewServeMux()
 	var handler http.Handler = proxy
-	if sourcePath != "/" {
-		handler = http.StripPrefix(sourcePath, proxy)
+	if s.SourcePath != "/" {
+		handler = http.StripPrefix(s.SourcePath, proxy)
 	}
-	mux.Handle(sourcePath, handler)
-	log.Printf("%s serving on %v, %v%v (plaintext:%v, funnel:%v, funnelOnly:%v)",
-		*name, status.TailscaleIPs, *listenAddr, sourcePath, *servePlaintext, *funnel, *funnelOnly)
-	return http.Serve(l, mux)
+	mux.Handle(s.SourcePath, handler)
+	return l, mux, status, nil
 }
 
-func validateFlags() error {
-	if *name == "" {
-		return errors.New("The service needs a -name.")
-	}
-	if *servePlaintext && *funnel {
-		return errors.New("Can not serve plaintext on a funnel service.")
-	}
-	if *downstreamTCPAddr != "" && *downstreamUnixAddr != "" {
-		return errors.New("Can only proxy to one address at a time.")
-	}
-	if !*funnel && *funnelOnly {
-		return errors.New("-funnel is required if -funnelOnly is set.")
-	}
-	return nil
-}
-
-func listen(srv *tsnet.Server) (net.Listener, error) {
-	if *funnel {
+func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
+	if s.Funnel {
 		opts := []tsnet.FunnelOption{}
-		if *funnelOnly {
+		if s.FunnelOnly {
 			opts = append(opts, tsnet.FunnelOnly())
 		}
-		return srv.ListenFunnel("tcp", *listenAddr, opts...)
-	} else if !*servePlaintext {
-		return srv.ListenTLS("tcp", *listenAddr)
+		return srv.ListenFunnel("tcp", s.ListenAddr, opts...)
+	} else if !s.ServePlaintext {
+		return srv.ListenTLS("tcp", s.ListenAddr)
 	} else {
-		return srv.Listen("tcp", *listenAddr)
+		return srv.Listen("tcp", s.ListenAddr)
 	}
 }
