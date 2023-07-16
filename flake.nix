@@ -64,14 +64,13 @@
               category = "dev";
               help = "Regenerate tsnsrv.sri in case the module SRI hash should change";
               command = ''
-                output=$(pwd)/tsnsrv.sri
-                src="$(mktemp -d)"
-                cd "$src"
-                cp -R "${./.}"/. .
-                chmod -R u+w .
-                find . -ls
-                go mod vendor -o ./vendor
-                ${config.packages.nardump}/bin/nardump -sri ./vendor >"$output"
+                set -eu -o pipefail
+
+                src="$(pwd)"
+                temp="$(mktemp -d)"
+                trap "rm -rf $temp" EXIT
+                go mod vendor -o "$temp"
+                ${config.packages.nardump}/bin/nardump -sri $temp >"$src/tsnsrv.sri"
               '';
             }
           ];
