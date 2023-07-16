@@ -64,21 +64,25 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 }
 
 func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
+	var errs []error
 	if s.Name == "" {
-		return nil, errors.New("The service needs a -name.")
+		errs = append(errs, errors.New("tsnsrv needs a -name."))
 	}
 	if s.ServePlaintext && s.Funnel {
-		return nil, errors.New("Can not serve plaintext on a funnel service.")
+		errs = append(errs, errors.New("can not serve plaintext on a funnel service."))
 	}
 	if s.DownstreamTCPAddr != "" && s.DownstreamUnixAddr != "" {
-		return nil, errors.New("Can only proxy to one address at a time.")
+		errs = append(errs, errors.New("can only proxy to one address at a time, pass either -downstreamUnixAddr or -downstreamTCPAddr"))
 	}
 	if !s.Funnel && s.FunnelOnly {
-		return nil, errors.New("-funnel is required if -funnelOnly is set.")
+		errs = append(errs, errors.New("-funnel is required if -funnelOnly is set."))
 	}
 
 	if len(args) != 2 {
-		return nil, errors.New("tsnsrv requires a source path and a destination URL.")
+		errs = append(errs, errors.New("tsnsrv requires a source path and a destination URL."))
+	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
 	}
 	sourcePath := args[0]
 	if sourcePath == "" {
@@ -92,16 +96,6 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 
 	valid := validTailnetSrv{TailnetSrv: *s, DestURL: destURL, SourcePath: sourcePath}
 	return &valid, nil
-}
-
-func main() {
-	s, cmd, err := tailnetSrvFromArgs(os.Args[1:])
-	if err != nil {
-		log.Fatalf("Invalid CLI usage: %v\n%v", err, ffcli.DefaultUsageFunc(cmd))
-	}
-	if err := s.Run(context.Background()); err != nil {
-		log.Fatal(err)
-	}
 }
 
 func (s *validTailnetSrv) Run(ctx context.Context) error {
@@ -173,5 +167,15 @@ func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
 		return srv.ListenTLS("tcp", s.ListenAddr)
 	} else {
 		return srv.Listen("tcp", s.ListenAddr)
+	}
+}
+
+func main() {
+	s, cmd, err := tailnetSrvFromArgs(os.Args[1:])
+	if err != nil {
+		log.Fatalf("Invalid CLI usage. Errors:\n%v\n\n%v", err, ffcli.DefaultUsageFunc(cmd))
+	}
+	if err := s.Run(context.Background()); err != nil {
+		log.Fatal(err)
 	}
 }
