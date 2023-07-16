@@ -2,7 +2,10 @@ module github.com/antifuchs/tsnsrv
 
 go 1.18
 
-require tailscale.com v1.44.0
+require (
+	github.com/peterbourgon/ff/v3 v3.3.0
+	tailscale.com v1.44.0
+)
 
 require (
 	filippo.io/edwards25519 v1.0.0 // indirect
