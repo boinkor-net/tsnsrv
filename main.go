@@ -100,7 +100,7 @@ func listen(srv *tsnet.Server) (net.Listener, error) {
 			opts = append(opts, tsnet.FunnelOnly())
 		}
 		return srv.ListenFunnel("tcp", *listenAddr, opts...)
-	} else if *servePlaintext {
+	} else if !*servePlaintext {
 		return srv.ListenTLS("tcp", *listenAddr)
 	} else {
 		return srv.Listen("tcp", *listenAddr)
