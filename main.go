@@ -98,8 +98,8 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	return &valid, nil
 }
 
-func (s *validTailnetSrv) Run(ctx context.Context) error {
-	l, mux, status, err := s.ListenerAndMux(ctx)
+func (s *validTailnetSrv) run(ctx context.Context) error {
+	l, mux, status, err := s.listenerAndMux(ctx)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (s *validTailnetSrv) Run(ctx context.Context) error {
 	return fmt.Errorf("while serving: %w", http.Serve(l, mux))
 }
 
-func (s *validTailnetSrv) ListenerAndMux(ctx context.Context) (net.Listener, *http.ServeMux, *ipnstate.Status, error) {
+func (s *validTailnetSrv) listenerAndMux(ctx context.Context) (net.Listener, *http.ServeMux, *ipnstate.Status, error) {
 	srv := &tsnet.Server{
 		Hostname:   s.Name,
 		Logf:       logger.Discard,
@@ -175,7 +175,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Invalid CLI usage. Errors:\n%v\n\n%v", err, ffcli.DefaultUsageFunc(cmd))
 	}
-	if err := s.Run(context.Background()); err != nil {
+	if err := s.run(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 }
