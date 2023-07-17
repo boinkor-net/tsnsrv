@@ -1,7 +1,15 @@
 package main
 
 import (
+	"context"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFromArgs(t *testing.T) {
@@ -41,4 +49,43 @@ func TestFromArgs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrefixServing(t *testing.T) {
+	apiKey := os.Getenv("TS_AUTHKEY")
+	if apiKey == "" {
+		t.Skip("Serving on the tailnet requires an API key to be set")
+	}
+
+	testmux := http.NewServeMux()
+	testmux.HandleFunc("/subpath", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("wrong"))
+	})
+	testmux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+	ts := httptest.NewServer(testmux)
+	defer ts.Close()
+
+	s, _, err := tailnetSrvFromArgs([]string{"-name", "TestPrefixServing", "-ephemeral",
+		"/subpath", ts.URL,
+	})
+	require.NoError(t, err)
+	// TODO: It would be relatively doable here to just create the mux & test the reverseproxy logic alone.
+	_, mux, _, err := s.listenerAndMux(context.Background())
+	require.NoError(t, err)
+	proxy := httptest.NewServer(mux)
+	pc := proxy.Client()
+	resp404, err := pc.Get(proxy.URL)
+	require.NoError(t, err)
+	assert.Equal(t, resp404.StatusCode, http.StatusNotFound)
+
+	respOk, err := pc.Get(proxy.URL + "/subpath")
+	require.NoError(t, err)
+	assert.Equal(t, respOk.StatusCode, http.StatusOK)
+	body, err := ioutil.ReadAll(respOk.Body)
+	require.NoError(t, err)
+	assert.Equal(t, body, []byte("ok"))
 }

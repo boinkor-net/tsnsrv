@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/peterbourgon/ff/v3 v3.3.0
+	github.com/stretchr/testify v1.8.2
 	tailscale.com v1.44.0
 )
 
@@ -26,6 +27,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.10 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.4.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
@@ -47,6 +49,7 @@ require (
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tailscale/certstore v0.1.1-0.20220316223106-78d6e1c49d8d // indirect
 	github.com/tailscale/golang-x-crypto v0.0.0-20221115211329-17a3db2c30d2 // indirect
 	github.com/tailscale/goupnp v1.0.1-0.20210804011211-c64d0f06ea05 // indirect
@@ -71,6 +74,7 @@ require (
 	golang.org/x/tools v0.9.1 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f // indirect
 	inet.af/peercred v0.0.0-20210906144145-0893ea02156a // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
