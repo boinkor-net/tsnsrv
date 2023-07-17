@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -24,6 +25,7 @@ type TailnetSrv struct {
 	Funnel, FunnelOnly                    bool
 	ListenAddr                            string
 	Name                                  string
+	RecommendedProxyHeaders               bool
 	ServePlaintext                        bool
 	Timeout                               time.Duration
 }
@@ -44,6 +46,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.FunnelOnly, "funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
 	fs.StringVar(&s.ListenAddr, "listenAddr", ":443", "Address to listen on; note only :443, :8443 and :10000 are supported with -funnel.")
 	fs.StringVar(&s.Name, "name", "", "Name of this service")
+	fs.BoolVar(&s.RecommendedProxyHeaders, "recommendedProxyHeaders", true, "Set Host, X-Real-Ip, X-Forwarded-{Proto,Server,Port} headers.")
 	fs.BoolVar(&s.ServePlaintext, "plaintext", false, "Serve plaintext HTTP without TLS")
 	fs.DurationVar(&s.Timeout, "timeout", 1*time.Minute, "Timeout connecting to the tailnet")
 
@@ -135,13 +138,25 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	return fmt.Errorf("while serving: %w", http.Serve(l, mux))
 }
 
+func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
+	r.SetXForwarded()
+	r.SetURL(s.DestURL)
+	if s.RecommendedProxyHeaders {
+		r.Out.Host = r.In.Host
+		remoteIP, _, _ := strings.Cut(r.In.RemoteAddr, ":")
+		r.Out.Header.Set("X-Real-Ip", remoteIP)
+		hostOnly, port, _ := strings.Cut(r.In.Host, ":")
+		r.Out.Header.Set("X-Forwarded-Server", hostOnly)
+		if port != "" {
+			r.Out.Header.Set("X-Forwarded-Port", port)
+		}
+	}
+	log.Printf("Rewrote %v with %v to %v", r.In.URL, s.DestURL, r.Out.URL)
+}
+
 func (s *validTailnetSrv) mux(transport http.RoundTripper) *http.ServeMux {
 	proxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			r.SetXForwarded()
-			r.SetURL(s.DestURL)
-			log.Printf("Rewrote %v with %v to %v", r.In.URL, s.DestURL, r.Out.URL)
-		},
+		Rewrite:   s.rewrite,
 		Transport: transport,
 	}
 	mux := http.NewServeMux()
