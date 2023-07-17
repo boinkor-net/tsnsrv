@@ -46,7 +46,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.FunnelOnly, "funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
 	fs.StringVar(&s.ListenAddr, "listenAddr", ":443", "Address to listen on; note only :443, :8443 and :10000 are supported with -funnel.")
 	fs.StringVar(&s.Name, "name", "", "Name of this service")
-	fs.BoolVar(&s.RecommendedProxyHeaders, "recommendedProxyHeaders", true, "Set Host, X-Real-Ip, X-Forwarded-{Proto,Server,Port} headers.")
+	fs.BoolVar(&s.RecommendedProxyHeaders, "recommendedProxyHeaders", true, "Set Host, X-Scheme, X-Real-Ip, X-Forwarded-{Proto,Server,Port} headers.")
 	fs.BoolVar(&s.ServePlaintext, "plaintext", false, "Serve plaintext HTTP without TLS")
 	fs.DurationVar(&s.Timeout, "timeout", 1*time.Minute, "Timeout connecting to the tailnet")
 
@@ -142,6 +142,11 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 	r.SetXForwarded()
 	r.SetURL(s.DestURL)
 	if s.RecommendedProxyHeaders {
+		if r.In.TLS == nil {
+			r.Out.Header.Set("X-Scheme", "http")
+		} else {
+			r.Out.Header.Set("X-Scheme", "https")
+		}
 		r.Out.Host = r.In.Host
 		remoteIP, _, _ := strings.Cut(r.In.RemoteAddr, ":")
 		r.Out.Header.Set("X-Real-Ip", remoteIP)
