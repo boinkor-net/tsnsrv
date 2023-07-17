@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,11 +50,6 @@ func TestFromArgs(t *testing.T) {
 }
 
 func TestPrefixServing(t *testing.T) {
-	apiKey := os.Getenv("TS_AUTHKEY")
-	if apiKey == "" {
-		t.Skip("Serving on the tailnet requires an API key to be set")
-	}
-
 	testmux := http.NewServeMux()
 	testmux.HandleFunc("/subpath", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -73,9 +66,7 @@ func TestPrefixServing(t *testing.T) {
 		"/subpath", ts.URL,
 	})
 	require.NoError(t, err)
-	// TODO: It would be relatively doable here to just create the mux & test the reverseproxy logic alone.
-	_, mux, _, err := s.listenerAndMux(context.Background())
-	require.NoError(t, err)
+	mux := s.mux(http.DefaultTransport)
 	proxy := httptest.NewServer(mux)
 	pc := proxy.Client()
 	resp404, err := pc.Get(proxy.URL)

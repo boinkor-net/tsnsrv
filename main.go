@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
-	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
 )
@@ -99,16 +98,6 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 }
 
 func (s *validTailnetSrv) run(ctx context.Context) error {
-	l, mux, status, err := s.listenerAndMux(ctx)
-	if err != nil {
-		return err
-	}
-	log.Printf("%s serving on %v, %v%v -> %v (plaintext:%v, funnel:%v, funnelOnly:%v)",
-		s.Name, status.TailscaleIPs, s.ListenAddr, s.SourcePath, s.DestURL, s.ServePlaintext, s.Funnel, s.FunnelOnly)
-	return fmt.Errorf("while serving: %w", http.Serve(l, mux))
-}
-
-func (s *validTailnetSrv) listenerAndMux(ctx context.Context) (net.Listener, *http.ServeMux, *ipnstate.Status, error) {
 	srv := &tsnet.Server{
 		Hostname:   s.Name,
 		Logf:       logger.Discard,
@@ -119,12 +108,11 @@ func (s *validTailnetSrv) listenerAndMux(ctx context.Context) (net.Listener, *ht
 	defer cancel()
 	status, err := srv.Up(ctx)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("could not connect to tailnet: %w", err)
+		return fmt.Errorf("could not connect to tailnet: %w", err)
 	}
-
 	l, err := s.listen(srv)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("could not listen: %w", err)
+		return fmt.Errorf("could not listen: %w", err)
 	}
 
 	dial := srv.Dial
@@ -138,14 +126,23 @@ func (s *validTailnetSrv) listenerAndMux(ctx context.Context) (net.Listener, *ht
 			return d.DialContext(ctx, "unix", s.DownstreamUnixAddr)
 		}
 	}
+	mux := s.mux(&http.Transport{DialContext: dial})
+	if err != nil {
+		return err
+	}
+	log.Printf("%s serving on %v, %v%v -> %v (plaintext:%v, funnel:%v, funnelOnly:%v)",
+		s.Name, status.TailscaleIPs, s.ListenAddr, s.SourcePath, s.DestURL, s.ServePlaintext, s.Funnel, s.FunnelOnly)
+	return fmt.Errorf("while serving: %w", http.Serve(l, mux))
+}
 
+func (s *validTailnetSrv) mux(transport http.RoundTripper) *http.ServeMux {
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetXForwarded()
 			r.SetURL(s.DestURL)
 			log.Printf("Rewrote %v with %v to %v", r.In.URL, s.DestURL, r.Out.URL)
 		},
-		Transport: &http.Transport{DialContext: dial},
+		Transport: transport,
 	}
 	mux := http.NewServeMux()
 	var handler http.Handler = proxy
@@ -153,7 +150,7 @@ func (s *validTailnetSrv) listenerAndMux(ctx context.Context) (net.Listener, *ht
 		handler = http.StripPrefix(s.SourcePath, proxy)
 	}
 	mux.Handle("/", handler)
-	return l, mux, status, nil
+	return mux
 }
 
 func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
