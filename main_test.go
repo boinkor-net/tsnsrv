@@ -80,12 +80,12 @@ func TestPrefixServing(t *testing.T) {
 	pc := proxy.Client()
 	resp404, err := pc.Get(proxy.URL)
 	require.NoError(t, err)
-	assert.Equal(t, resp404.StatusCode, http.StatusNotFound)
+	assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
 
 	respOk, err := pc.Get(proxy.URL + "/subpath")
 	require.NoError(t, err)
-	assert.Equal(t, respOk.StatusCode, http.StatusOK)
+	assert.Equal(t, http.StatusOK, respOk.StatusCode)
 	body, err := ioutil.ReadAll(respOk.Body)
 	require.NoError(t, err)
-	assert.Equal(t, body, []byte("ok"))
+	assert.Equal(t, []byte("ok"), body)
 }
