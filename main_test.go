@@ -82,10 +82,19 @@ func TestPrefixServing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
 
+	// Subpath itself:
 	respOk, err := pc.Get(proxy.URL + "/subpath")
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, respOk.StatusCode)
 	body, err := ioutil.ReadAll(respOk.Body)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("ok"), body)
+
+	// Subpaths of /subpath:
+	respOk, err = pc.Get(proxy.URL + "/subpath/hi")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, respOk.StatusCode)
+	body, err = ioutil.ReadAll(respOk.Body)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("ok"), body)
 }

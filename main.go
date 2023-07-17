@@ -152,7 +152,7 @@ func (s *validTailnetSrv) listenerAndMux(ctx context.Context) (net.Listener, *ht
 	if s.SourcePath != "/" {
 		handler = http.StripPrefix(s.SourcePath, proxy)
 	}
-	mux.Handle(s.SourcePath, handler)
+	mux.Handle("/", handler)
 	return l, mux, status, nil
 }
 
