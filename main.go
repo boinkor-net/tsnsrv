@@ -13,6 +13,8 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
@@ -132,8 +134,16 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("%s serving on %v, %v%v -> %v (plaintext:%v, funnel:%v, funnelOnly:%v)",
-		s.Name, status.TailscaleIPs, s.ListenAddr, s.SourcePath, s.DestURL, s.ServePlaintext, s.Funnel, s.FunnelOnly)
+	slog.Info("Serving",
+		"name", s.Name,
+		"tailscaleIPs", status.TailscaleIPs,
+		"listenAddr", s.ListenAddr,
+		"sourcePath", s.SourcePath,
+		"destURL", s.DestURL,
+		"plaintext", s.ServePlaintext,
+		"funnel", s.Funnel,
+		"funnelOnly", s.FunnelOnly,
+	)
 	return fmt.Errorf("while serving: %w", http.Serve(l, mux))
 }
 
@@ -163,7 +173,11 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 			r.Out.Header.Set("X-Forwarded-Port", port)
 		}
 	}
-	log.Printf("Rewrote %v with %v to %v off %v", r.In.URL, s.DestURL, r.Out.URL, s.DestURL)
+	slog.Info("rewrote request",
+		"original", r.In.URL,
+		"rewritten", r.Out.URL,
+		"destURL", s.DestURL,
+	)
 }
 
 func (s *validTailnetSrv) mux(transport http.RoundTripper) *http.ServeMux {
