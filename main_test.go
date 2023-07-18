@@ -126,8 +126,9 @@ func TestRouting(t *testing.T) {
 			mux := s.mux(http.DefaultTransport)
 			proxy := httptest.NewServer(mux)
 			pc := proxy.Client()
-			_, err = pc.Get(proxy.URL + test.requestPath)
+			resp, err := pc.Get(proxy.URL + test.requestPath)
 			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
 }
