@@ -213,6 +213,10 @@ func stripPrefixes(prefixes []string, handler http.Handler) http.Handler {
 				return
 			}
 		}
+		slog.WarnCtx(r.Context(), "URL prefix not allowed",
+			"url", r.URL,
+			"prefixes", prefixes,
+		)
 		http.NotFound(w, r)
 	})
 }
