@@ -89,3 +89,40 @@ func TestPrefixServing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []byte("ok"), body)
 }
+
+func TestRouting(t *testing.T) {
+	for _, elt := range []struct {
+		name, fromPath, toURLPath, requestPath, expectedPath string
+	}{
+		{"simple", "/", "/", "/", "/"},
+		{"rewriting an exact path", "/api/push-github", "/api/push-github", "/api/push-github", "/api/push-github"},
+		{"rewriting a subpath", "/api", "/api", "/api/push-github", "/api/push-github"},
+	} {
+		test := elt
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			testmux := http.NewServeMux()
+			testmux.HandleFunc("/subpath", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte("wrong"))
+			})
+			testmux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				assert.Equal(t, test.expectedPath, r.URL.Path)
+			})
+			ts := httptest.NewServer(testmux)
+			defer ts.Close()
+
+			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestRouting", "-ephemeral",
+				test.fromPath, ts.URL + test.toURLPath,
+			})
+			require.NoError(t, err)
+			mux := s.mux(http.DefaultTransport)
+			proxy := httptest.NewServer(mux)
+			pc := proxy.Client()
+			_, err = pc.Get(proxy.URL + test.requestPath)
+			require.NoError(t, err)
+		})
+	}
+}

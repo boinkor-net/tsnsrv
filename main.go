@@ -140,6 +140,10 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 	r.SetXForwarded()
 	r.SetURL(s.DestURL)
+	// Prevent excessive final `/` being appended to the URL (thanks, StripPrefix):
+	if r.In.URL.Path == "" {
+		r.Out.URL.Path = s.DestURL.Path
+	}
 	if s.RecommendedProxyHeaders {
 		if r.In.TLS == nil {
 			r.Out.Header.Set("X-Scheme", "http")
@@ -159,7 +163,7 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 			r.Out.Header.Set("X-Forwarded-Port", port)
 		}
 	}
-	log.Printf("Rewrote %v with %v to %v", r.In.URL, s.DestURL, r.Out.URL)
+	log.Printf("Rewrote %v with %v to %v off %v", r.In.URL, s.DestURL, r.Out.URL, s.DestURL)
 }
 
 func (s *validTailnetSrv) mux(transport http.RoundTripper) *http.ServeMux {
