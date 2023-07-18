@@ -11,7 +11,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -148,11 +147,15 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 			r.Out.Header.Set("X-Scheme", "https")
 		}
 		r.Out.Host = r.In.Host
-		remoteIP, _, _ := strings.Cut(r.In.RemoteAddr, ":")
-		r.Out.Header.Set("X-Real-Ip", remoteIP)
-		hostOnly, port, _ := strings.Cut(r.In.Host, ":")
-		r.Out.Header.Set("X-Forwarded-Server", hostOnly)
-		if port != "" {
+		remoteIP, _, err := net.SplitHostPort(r.In.RemoteAddr)
+		if err == nil {
+			r.Out.Header.Set("X-Real-Ip", remoteIP)
+		}
+		hostOnly, port, err := net.SplitHostPort(r.In.Host)
+		if err != nil {
+			r.Out.Header.Set("X-Forwarded-Server", r.In.Host)
+		} else {
+			r.Out.Header.Set("X-Forwarded-Server", hostOnly)
 			r.Out.Header.Set("X-Forwarded-Port", port)
 		}
 	}
