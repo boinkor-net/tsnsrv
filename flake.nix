@@ -80,6 +80,10 @@
           ];
         };
       };
+
+      flake.nixosModules = {
+        default = {imports = [./nixos];};
+      };
     };
 
   inputs = {
