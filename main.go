@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/exp/slog"
@@ -19,6 +20,17 @@ import (
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
 )
+
+type prefixes []string
+
+func (p *prefixes) String() string {
+	return strings.Join(*p, ", ")
+}
+
+func (p *prefixes) Set(value string) error {
+	*p = append(*p, value)
+	return nil
+}
 
 type TailnetSrv struct {
 	DownstreamTCPAddr, DownstreamUnixAddr string
@@ -29,12 +41,12 @@ type TailnetSrv struct {
 	RecommendedProxyHeaders               bool
 	ServePlaintext                        bool
 	Timeout                               time.Duration
+	AllowedPrefixes                       prefixes
 }
 
 type validTailnetSrv struct {
 	TailnetSrv
-	SourcePath string
-	DestURL    *url.URL
+	DestURL *url.URL
 }
 
 func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
@@ -50,6 +62,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.RecommendedProxyHeaders, "recommendedProxyHeaders", true, "Set Host, X-Scheme, X-Real-Ip, X-Forwarded-{Proto,Server,Port} headers.")
 	fs.BoolVar(&s.ServePlaintext, "plaintext", false, "Serve plaintext HTTP without TLS")
 	fs.DurationVar(&s.Timeout, "timeout", 1*time.Minute, "Timeout connecting to the tailnet")
+	fs.Var(&s.AllowedPrefixes, "prefix", "Allowed URL prefixes; if none is set, all prefixes are allowed")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <fromPath> <toURL>",
@@ -81,23 +94,19 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 		errs = append(errs, errors.New("-funnel is required if -funnelOnly is set."))
 	}
 
-	if len(args) != 2 {
+	if len(args) != 1 {
 		errs = append(errs, errors.New("tsnsrv requires a source path and a destination URL."))
 	}
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
-	sourcePath := args[0]
-	if sourcePath == "" {
-		sourcePath = "/"
-	}
 
-	destURL, err := url.Parse(args[1])
+	destURL, err := url.Parse(args[0])
 	if err != nil {
-		return nil, fmt.Errorf("invalid destination URL %#v: %w", args[1], err)
+		return nil, fmt.Errorf("invalid destination URL %#v: %w", args[0], err)
 	}
 
-	valid := validTailnetSrv{TailnetSrv: *s, DestURL: destURL, SourcePath: sourcePath}
+	valid := validTailnetSrv{TailnetSrv: *s, DestURL: destURL}
 	return &valid, nil
 }
 
@@ -138,7 +147,7 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 		"name", s.Name,
 		"tailscaleIPs", status.TailscaleIPs,
 		"listenAddr", s.ListenAddr,
-		"sourcePath", s.SourcePath,
+		"prexifes", s.AllowedPrefixes,
 		"destURL", s.DestURL,
 		"plaintext", s.ServePlaintext,
 		"funnel", s.Funnel,
@@ -148,12 +157,13 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 }
 
 func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
-	r.SetXForwarded()
 	r.SetURL(s.DestURL)
-	// Prevent excessive final `/` being appended to the URL (thanks, StripPrefix):
 	if r.In.URL.Path == "" {
 		r.Out.URL.Path = s.DestURL.Path
 	}
+
+	// Set known proxy headers:
+	r.SetXForwarded()
 	if s.RecommendedProxyHeaders {
 		if r.In.TLS == nil {
 			r.Out.Header.Set("X-Scheme", "http")
@@ -180,17 +190,40 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 	)
 }
 
-func (s *validTailnetSrv) mux(transport http.RoundTripper) *http.ServeMux {
+// stripPrefixes acts like the http.StripPrefix middleware, except
+// that it checks against several allowed prefixes (an empty list
+// means that all prefixes are allowed); if no prefixes match, it
+// returns 404.
+func stripPrefixes(prefixes []string, handler http.Handler) http.Handler {
+	if len(prefixes) == 0 {
+		return handler
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for _, prefix := range prefixes {
+			p := strings.TrimPrefix(r.URL.Path, prefix)
+			rp := strings.TrimPrefix(r.URL.RawPath, prefix)
+			if len(p) < len(r.URL.Path) && (r.URL.RawPath == "" || len(rp) < len(r.URL.RawPath)) {
+				r2 := new(http.Request)
+				*r2 = *r
+				r2.URL = new(url.URL)
+				*r2.URL = *r.URL
+				r2.URL.Path = p
+				r2.URL.RawPath = rp
+				handler.ServeHTTP(w, r2)
+				return
+			}
+		}
+		http.NotFound(w, r)
+	})
+}
+
+func (s *validTailnetSrv) mux(transport http.RoundTripper) http.Handler {
 	proxy := &httputil.ReverseProxy{
 		Rewrite:   s.rewrite,
 		Transport: transport,
 	}
 	mux := http.NewServeMux()
-	var handler http.Handler = proxy
-	if s.SourcePath != "/" {
-		handler = http.StripPrefix(s.SourcePath, proxy)
-	}
-	mux.Handle("/", handler)
+	mux.Handle("/", stripPrefixes(s.AllowedPrefixes, proxy))
 	return mux
 }
 

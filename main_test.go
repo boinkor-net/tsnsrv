@@ -16,19 +16,19 @@ func TestFromArgs(t *testing.T) {
 		args []string
 		ok   bool
 	}{
-		{"basic", []string{"-name", "foo", "/", "http://example.com"}, true},
-		{"connect to unix", []string{"-name", "foo", "-downstreamUnixAddr=/tmp/foo.sock", "/", "http://example.com"}, true},
-		{"connect to TCP", []string{"-name", "foo", "-downstreamTCPAddr=127.0.0.1:80", "/", "http://example.com"}, true},
-		{"funnel", []string{"-name", "foo", "-funnel=true", "/", "http://example.com"}, true},
-		{"funnelOnly", []string{"-name", "foo", "-funnel=true", "-funnelOnly", "/", "http://example.com"}, true},
-		{"ephemeral", []string{"-name", "foo", "-ephemeral=true", "/", "http://example.com"}, true},
+		{"basic", []string{"-name", "foo", "http://example.com"}, true},
+		{"connect to unix", []string{"-name", "foo", "-downstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, true},
+		{"connect to TCP", []string{"-name", "foo", "-downstreamTCPAddr=127.0.0.1:80", "http://example.com"}, true},
+		{"funnel", []string{"-name", "foo", "-funnel=true", "http://example.com"}, true},
+		{"funnelOnly", []string{"-name", "foo", "-funnel=true", "-funnelOnly", "http://example.com"}, true},
+		{"ephemeral", []string{"-name", "foo", "-ephemeral=true", "http://example.com"}, true},
 
 		// Expected to fail:
 		{"no args", []string{}, false},
-		{"both addrs", []string{"-name", "foo", "-downstreamTCPAddr=127.0.0.1:80", "-downstreamUnixAddr=/tmp/foo.sock", "/", "http://example.com"}, false},
-		{"plaintext on funnel", []string{"-name", "foo", "-plaintext=true", "-funnel", "/", "http://example.com"}, false},
-		{"invalid funnelOnly", []string{"-name", "foo", "-funnelOnly", "/", "http://example.com"}, false},
-		{"invalid destination URL", []string{"-name", "foo", "/", "::--example.com"}, false},
+		{"both addrs", []string{"-name", "foo", "-downstreamTCPAddr=127.0.0.1:80", "-downstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, false},
+		{"plaintext on funnel", []string{"-name", "foo", "-plaintext=true", "-funnel", "http://example.com"}, false},
+		{"invalid funnelOnly", []string{"-name", "foo", "-funnelOnly", "http://example.com"}, false},
+		{"invalid destination URL", []string{"-name", "foo", "::--example.com"}, false},
 	} {
 		test := elt
 		t.Run(test.name, func(t *testing.T) {
@@ -63,7 +63,8 @@ func TestPrefixServing(t *testing.T) {
 	defer ts.Close()
 
 	s, _, err := tailnetSrvFromArgs([]string{"-name", "TestPrefixServing", "-ephemeral",
-		"/subpath", ts.URL,
+		"-prefix", "/subpath", "-prefix", "/other/subpath",
+		ts.URL,
 	})
 	require.NoError(t, err)
 	mux := s.mux(http.DefaultTransport)
@@ -73,21 +74,24 @@ func TestPrefixServing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
 
-	// Subpath itself:
-	respOk, err := pc.Get(proxy.URL + "/subpath")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, respOk.StatusCode)
-	body, err := ioutil.ReadAll(respOk.Body)
-	require.NoError(t, err)
-	assert.Equal(t, []byte("ok"), body)
+	for _, subpath := range []string{"/subpath", "/other/subpath"} {
+		// Subpath itself:
+		respOk, err := pc.Get(proxy.URL + subpath)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, respOk.StatusCode)
+		body, err := ioutil.ReadAll(respOk.Body)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("ok"), body)
 
-	// Subpaths of /subpath:
-	respOk, err = pc.Get(proxy.URL + "/subpath/hi")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, respOk.StatusCode)
-	body, err = ioutil.ReadAll(respOk.Body)
-	require.NoError(t, err)
-	assert.Equal(t, []byte("ok"), body)
+		// Subpaths of subpath:
+		respOk, err = pc.Get(proxy.URL + subpath + "/hi")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, respOk.StatusCode)
+		body, err = ioutil.ReadAll(respOk.Body)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("ok"), body)
+	}
+
 }
 
 func TestRouting(t *testing.T) {
@@ -97,6 +101,7 @@ func TestRouting(t *testing.T) {
 		{"simple", "/", "/", "/", "/"},
 		{"rewriting an exact path", "/api/push-github", "/api/push-github", "/api/push-github", "/api/push-github"},
 		{"rewriting a subpath", "/api", "/api", "/api/push-github", "/api/push-github"},
+		{"rewriting root", "/", "/api/push-github", "/", "/api/push-github"},
 	} {
 		test := elt
 		t.Run(test.name, func(t *testing.T) {
@@ -114,8 +119,8 @@ func TestRouting(t *testing.T) {
 			ts := httptest.NewServer(testmux)
 			defer ts.Close()
 
-			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestRouting", "-ephemeral",
-				test.fromPath, ts.URL + test.toURLPath,
+			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestRouting", "-ephemeral", "-prefix", test.fromPath,
+				ts.URL + test.toURLPath,
 			})
 			require.NoError(t, err)
 			mux := s.mux(http.DefaultTransport)
