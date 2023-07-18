@@ -1,5 +1,6 @@
 {
   outputs = inputs @ {
+    self,
     flake-parts,
     nixpkgs,
     ...
@@ -79,6 +80,10 @@
             pkgs.gopls
           ];
         };
+      };
+
+      flake.nixosModules = {
+        default = import ./nixos {flake = self;};
       };
     };
 
