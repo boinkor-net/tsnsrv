@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -97,11 +98,14 @@ func TestPrefixServing(t *testing.T) {
 func TestRouting(t *testing.T) {
 	for _, elt := range []struct {
 		name, fromPath, toURLPath, requestPath, expectedPath string
+		strip                                                bool
 	}{
-		{"simple", "/", "/", "/", "/"},
-		{"rewriting an exact path", "/api/push-github", "/api/push-github", "/api/push-github", "/api/push-github"},
-		{"rewriting a subpath", "/api", "/api", "/api/push-github", "/api/push-github"},
-		{"rewriting root", "/", "/api/push-github", "/", "/api/push-github"},
+		{"simple", "/", "/", "/", "/", true},
+		{"rewriting an exact path", "/api/push-github", "/api/push-github", "/api/push-github", "/api/push-github", true},
+		{"rewriting a subpath", "/api", "/api", "/api/push-github", "/api/push-github", true},
+		{"rewriting root", "/", "/api/push-github", "/", "/api/push-github", true},
+
+		{"not rewriting subpath", "/_matrix", "/", "/_matrix/client/versions", "/_matrix/client/versions", false},
 	} {
 		test := elt
 		t.Run(test.name, func(t *testing.T) {
@@ -119,7 +123,7 @@ func TestRouting(t *testing.T) {
 			ts := httptest.NewServer(testmux)
 			defer ts.Close()
 
-			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestRouting", "-ephemeral", "-prefix", test.fromPath,
+			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestRouting", "-ephemeral", "-prefix", test.fromPath, fmt.Sprintf("-stripPrefix=%v", test.strip),
 				ts.URL + test.toURLPath,
 			})
 			require.NoError(t, err)

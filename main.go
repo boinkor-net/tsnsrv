@@ -42,6 +42,7 @@ type TailnetSrv struct {
 	ServePlaintext                        bool
 	Timeout                               time.Duration
 	AllowedPrefixes                       prefixes
+	StripPrefix                           bool
 }
 
 type validTailnetSrv struct {
@@ -63,6 +64,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.ServePlaintext, "plaintext", false, "Serve plaintext HTTP without TLS")
 	fs.DurationVar(&s.Timeout, "timeout", 1*time.Minute, "Timeout connecting to the tailnet")
 	fs.Var(&s.AllowedPrefixes, "prefix", "Allowed URL prefixes; if none is set, all prefixes are allowed")
+	fs.BoolVar(&s.StripPrefix, "stripPrefix", true, "Strip prefixes that matched; best set to false if allowing multiple prefixes")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <fromPath> <toURL>",
@@ -190,11 +192,11 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 	)
 }
 
-// stripPrefixes acts like the http.StripPrefix middleware, except
+// matchPrefixes acts like the http.StripPrefix middleware, except
 // that it checks against several allowed prefixes (an empty list
 // means that all prefixes are allowed); if no prefixes match, it
 // returns 404.
-func stripPrefixes(prefixes []string, handler http.Handler) http.Handler {
+func matchPrefixes(prefixes []string, strip bool, handler http.Handler) http.Handler {
 	if len(prefixes) == 0 {
 		return handler
 	}
@@ -205,10 +207,12 @@ func stripPrefixes(prefixes []string, handler http.Handler) http.Handler {
 			if len(p) < len(r.URL.Path) && (r.URL.RawPath == "" || len(rp) < len(r.URL.RawPath)) {
 				r2 := new(http.Request)
 				*r2 = *r
-				r2.URL = new(url.URL)
-				*r2.URL = *r.URL
-				r2.URL.Path = p
-				r2.URL.RawPath = rp
+				if strip {
+					r2.URL = new(url.URL)
+					*r2.URL = *r.URL
+					r2.URL.Path = p
+					r2.URL.RawPath = rp
+				}
 				handler.ServeHTTP(w, r2)
 				return
 			}
@@ -227,7 +231,7 @@ func (s *validTailnetSrv) mux(transport http.RoundTripper) http.Handler {
 		Transport: transport,
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/", stripPrefixes(s.AllowedPrefixes, proxy))
+	mux.Handle("/", matchPrefixes(s.AllowedPrefixes, s.StripPrefix, proxy))
 	return mux
 }
 
