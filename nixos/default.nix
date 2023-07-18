@@ -1,4 +1,4 @@
-{
+{flake}: {
   pkgs,
   config,
   lib,
@@ -9,6 +9,12 @@
       description = "Enable tsnsrv";
       type = types.bool;
       default = false;
+    };
+
+    services.tsnsrv.package = mkOption {
+      description = "Package to run tsnsrv out of";
+      default = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrv;
+      type = types.package;
     };
 
     services.tsnsrv.services = mkOption {
@@ -96,7 +102,7 @@
             script = ''
               export TS_AUTHKEY="$(cat ${config.services.tsnsrv.authKeyPath})"
               export XDG_CONFIG_HOME="$STATE_DIRECTORY"
-              exec ${pkgs.tsnsrv}/bin/tsnsrv -name "${name}" \
+              exec ${config.services.tsnsrv.package}/bin/tsnsrv -name "${name}" \
                      -ephemeral=${toBool value.ephemeral} \
                      -funnel=${toBool value.funnel} \
                      -plaintext=${toBool value.plaintext} \

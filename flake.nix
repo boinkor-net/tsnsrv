@@ -1,5 +1,6 @@
 {
   outputs = inputs @ {
+    self,
     flake-parts,
     nixpkgs,
     ...
@@ -82,7 +83,7 @@
       };
 
       flake.nixosModules = {
-        default = {imports = [./nixos];};
+        default = import ./nixos {flake = self;};
       };
     };
 
