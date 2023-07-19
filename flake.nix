@@ -31,7 +31,7 @@
             pname = "tsnsrv";
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
-            src = ./.;
+            src = with pkgs; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
             meta.mainProgram = "tsnsrv";
           };
 
