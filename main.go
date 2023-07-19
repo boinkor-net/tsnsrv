@@ -67,7 +67,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.StripPrefix, "stripPrefix", true, "Strip prefixes that matched; best set to false if allowing multiple prefixes")
 
 	root := &ffcli.Command{
-		ShortUsage: "tsnsrv -name <serviceName> [flags] <fromPath> <toURL>",
+		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
 		FlagSet:    fs,
 		Exec:       func(context.Context, []string) error { return nil },
 	}
@@ -97,7 +97,7 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	}
 
 	if len(args) != 1 {
-		errs = append(errs, errors.New("tsnsrv requires a source path and a destination URL."))
+		errs = append(errs, errors.New("tsnsrv requires a destination URL."))
 	}
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
