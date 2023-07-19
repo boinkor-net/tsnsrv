@@ -11,10 +11,17 @@
       default = false;
     };
 
-    services.tsnsrv.package = mkOption {
-      description = "Package to run tsnsrv out of";
-      default = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrv;
-      type = types.package;
+    services.tsnsrv.defaults = {
+      package = mkOption {
+        description = "Package to run tsnsrv out of";
+        default = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrv;
+        type = types.package;
+      };
+
+      authKeyPath = lib.mkOption {
+        description = "Path to a file containing a tailscale auth key. Make this a secret";
+        type = types.path;
+      };
     };
 
     services.tsnsrv.services = mkOption {
@@ -22,6 +29,12 @@
       default = {};
       type = types.attrsOf (types.submodule {
         options = {
+          authKeyPath = lib.mkOption {
+            description = "Path to a file containing a tailscale auth key. Make this a secret";
+            type = types.path;
+            default = config.services.tsnsrv.defaults.authKeyPath;
+          };
+
           ephemeral = mkOption {
             description = "Delete the tailnet participant shortly after it goes offline";
             type = types.bool;
@@ -38,6 +51,12 @@
             description = "Address to listen on";
             type = types.str;
             default = ":443";
+          };
+
+          package = mkOption {
+            description = "Package to use for this tsnsrv service.";
+            default = config.services.tsnsrv.defaults.package;
+            type = types.package;
           };
 
           plaintext = mkOption {
@@ -78,10 +97,6 @@
       });
       example = false;
     };
-
-    services.tsnsrv.authKeyPath = lib.mkOption {
-      description = "Path to a file containing a tailscale auth key. Make this a secret";
-    };
   };
 
   config = lib.mkIf config.services.tsnsrv.enable {
@@ -95,14 +110,14 @@
             wantedBy = ["multi-user.target"];
             after = ["network-online.target"];
             script = ''
-              exec ${config.services.tsnsrv.package}/bin/tsnsrv -name "${name}" \
+              exec ${value.package}/bin/tsnsrv -name "${name}" \
                      -ephemeral=${lib.boolToString value.ephemeral} \
                      -funnel=${lib.boolToString value.funnel} \
                      -plaintext=${lib.boolToString value.plaintext} \
                      -listenAddr="${value.listenAddr}" \
                      -stripPrefix="${lib.boolToString value.stripPrefix}" \
                      -stateDir="$STATE_DIRECTORY/tsnet-tsnsrv" \
-                     -authkeyPath="${config.services.tsnsrv.authKeyPath}" \
+                     -authkeyPath="${value.authKeyPath}" \
                      ${
                 if value.downstreamUnixAddr != null
                 then "-downstreamUnixAddr=${value.downstreamUnixAddr}"
