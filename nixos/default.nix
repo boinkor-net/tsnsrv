@@ -84,12 +84,7 @@
     };
   };
 
-  config = lib.mkIf config.services.tsnsrv.enable (let
-    toBool = val:
-      if val == true
-      then "true"
-      else "false";
-  in {
+  config = lib.mkIf config.services.tsnsrv.enable {
     users.groups.tsnsrv = {};
     systemd.services =
       lib.mapAttrs' (
@@ -101,11 +96,11 @@
             after = ["network-online.target"];
             script = ''
               exec ${config.services.tsnsrv.package}/bin/tsnsrv -name "${name}" \
-                     -ephemeral=${toBool value.ephemeral} \
-                     -funnel=${toBool value.funnel} \
-                     -plaintext=${toBool value.plaintext} \
+                     -ephemeral=${lib.boolToString value.ephemeral} \
+                     -funnel=${lib.boolToString value.funnel} \
+                     -plaintext=${lib.boolToString value.plaintext} \
                      -listenAddr="${value.listenAddr}" \
-                     -stripPrefix="${toBool value.stripPrefix}" \
+                     -stripPrefix="${lib.boolToString value.stripPrefix}" \
                      -stateDir="$STATE_DIRECTORY/tsnet-tsnsrv" \
                      -authkeyPath="${config.services.tsnsrv.authKeyPath}" \
                      ${
@@ -154,5 +149,5 @@
           }
       )
       config.services.tsnsrv.services;
-  });
+  };
 }
