@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -43,6 +44,8 @@ type TailnetSrv struct {
 	Timeout                               time.Duration
 	AllowedPrefixes                       prefixes
 	StripPrefix                           bool
+	StateDir                              string
+	AuthkeyPath                           string
 }
 
 type validTailnetSrv struct {
@@ -65,6 +68,8 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.DurationVar(&s.Timeout, "timeout", 1*time.Minute, "Timeout connecting to the tailnet")
 	fs.Var(&s.AllowedPrefixes, "prefix", "Allowed URL prefixes; if none is set, all prefixes are allowed")
 	fs.BoolVar(&s.StripPrefix, "stripPrefix", true, "Strip prefixes that matched; best set to false if allowing multiple prefixes")
+	fs.StringVar(&s.StateDir, "stateDir", "", "Directory containing the persistent tailscale status files.")
+	fs.StringVar(&s.AuthkeyPath, "authkeyPath", "", "File containing a tailscale auth key. Key is assumed to be in $TS_AUTHKEY in absence of this option.")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
@@ -112,12 +117,32 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	return &valid, nil
 }
 
+func authkeyFromFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	key, err := io.ReadAll(f)
+	return string(key), err
+}
+
 func (s *validTailnetSrv) run(ctx context.Context) error {
 	srv := &tsnet.Server{
 		Hostname:   s.Name,
+		Dir:        s.StateDir,
 		Logf:       logger.Discard,
 		Ephemeral:  s.Ephemeral,
 		ControlURL: os.Getenv("TS_URL"),
+	}
+	if s.AuthkeyPath != "" {
+		var err error
+		srv.AuthKey, err = authkeyFromFile(s.AuthkeyPath)
+		if err != nil {
+			slog.Warn("Could not read authkey from file",
+				"path", s.AuthkeyPath,
+				"error", err)
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, s.Timeout)
 	defer cancel()

@@ -100,14 +100,14 @@
             wantedBy = ["multi-user.target"];
             after = ["network-online.target"];
             script = ''
-              export TS_AUTHKEY="$(cat ${config.services.tsnsrv.authKeyPath})"
-              export XDG_CONFIG_HOME="$STATE_DIRECTORY"
               exec ${config.services.tsnsrv.package}/bin/tsnsrv -name "${name}" \
                      -ephemeral=${toBool value.ephemeral} \
                      -funnel=${toBool value.funnel} \
                      -plaintext=${toBool value.plaintext} \
                      -listenAddr="${value.listenAddr}" \
                      -stripPrefix="${toBool value.stripPrefix}" \
+                     -stateDir="$STATE_DIRECTORY/tsnet-tsnsrv" \
+                     -authkeyPath="${config.services.tsnsrv.authKeyPath}" \
                      ${
                 if value.downstreamUnixAddr != null
                 then "-downstreamUnixAddr=${value.downstreamUnixAddr}"
