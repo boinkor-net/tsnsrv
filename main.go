@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -46,6 +47,7 @@ type TailnetSrv struct {
 	StripPrefix                           bool
 	StateDir                              string
 	AuthkeyPath                           string
+	InsecureHTTPS                         bool
 }
 
 type validTailnetSrv struct {
@@ -70,6 +72,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.StripPrefix, "stripPrefix", true, "Strip prefixes that matched; best set to false if allowing multiple prefixes")
 	fs.StringVar(&s.StateDir, "stateDir", "", "Directory containing the persistent tailscale status files.")
 	fs.StringVar(&s.AuthkeyPath, "authkeyPath", "", "File containing a tailscale auth key. Key is assumed to be in $TS_AUTHKEY in absence of this option.")
+	fs.BoolVar(&s.InsecureHTTPS, "insecureHTTPS", false, "Disable TLS certificate validation on upstream")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
@@ -166,7 +169,11 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 			return d.DialContext(ctx, "unix", s.DownstreamUnixAddr)
 		}
 	}
-	mux := s.mux(&http.Transport{DialContext: dial})
+	transport := &http.Transport{DialContext: dial}
+	if s.InsecureHTTPS {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	mux := s.mux(transport)
 	if err != nil {
 		return err
 	}

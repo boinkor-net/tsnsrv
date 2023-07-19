@@ -47,6 +47,12 @@
             default = false;
           };
 
+          insecureHTTPS = mkOption {
+            description = "Disable TLS certificate validation for requests from upstream. Insecure.";
+            type = types.bool;
+            default = false;
+          };
+
           listenAddr = mkOption {
             description = "Address to listen on";
             type = types.str;
@@ -118,6 +124,7 @@
                      -stripPrefix="${lib.boolToString value.stripPrefix}" \
                      -stateDir="$STATE_DIRECTORY/tsnet-tsnsrv" \
                      -authkeyPath="${value.authKeyPath}" \
+                     -insecureHTTPS="${lib.boolToString value.insecureHTTPS}" \
                      ${
                 if value.downstreamUnixAddr != null
                 then "-downstreamUnixAddr=${value.downstreamUnixAddr}"
