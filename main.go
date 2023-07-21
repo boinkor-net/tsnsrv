@@ -19,6 +19,7 @@ import (
 	"golang.org/x/exp/slog"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
+	"tailscale.com/client/tailscale"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
 )
@@ -48,11 +49,14 @@ type TailnetSrv struct {
 	StateDir                              string
 	AuthkeyPath                           string
 	InsecureHTTPS                         bool
+	WhoisTimeout                          time.Duration
+	SuppressWhois                         bool
 }
 
 type validTailnetSrv struct {
 	TailnetSrv
 	DestURL *url.URL
+	client  *tailscale.LocalClient
 }
 
 func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
@@ -73,6 +77,8 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.StringVar(&s.StateDir, "stateDir", "", "Directory containing the persistent tailscale status files.")
 	fs.StringVar(&s.AuthkeyPath, "authkeyPath", "", "File containing a tailscale auth key. Key is assumed to be in $TS_AUTHKEY in absence of this option.")
 	fs.BoolVar(&s.InsecureHTTPS, "insecureHTTPS", false, "Disable TLS certificate validation on upstream")
+	fs.DurationVar(&s.WhoisTimeout, "whoisTimeout", 1*time.Second, "Maximum amount of time to spend looking up client identities")
+	fs.BoolVar(&s.SuppressWhois, "suppressWhois", false, "Do not set X-Tailscale-User-* headers in upstream requests")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
@@ -153,6 +159,12 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not connect to tailnet: %w", err)
 	}
+	s.client, err = srv.LocalClient()
+	if err != nil {
+		slog.Warn("could not get a local tailscale client. Whois headers will not work.",
+			"error", err,
+		)
+	}
 	l, err := s.listen(srv)
 	if err != nil {
 		return fmt.Errorf("could not listen: %w", err)
@@ -217,11 +229,67 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 			r.Out.Header.Set("X-Forwarded-Port", port)
 		}
 	}
+	s.setWhoisHeaders(r)
 	slog.Info("rewrote request",
 		"original", r.In.URL,
 		"rewritten", r.Out.URL,
 		"destURL", s.DestURL,
+		"origin_login", r.Out.Header.Get("X-Tailscale-User-LoginName"),
+		"origin_node", r.Out.Header.Get("X-Tailscale-Node-Name"),
 	)
+}
+
+// Clean up and set user/node identity headers:
+func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) {
+	// First, clean out any input we received that looks like TS setting headers:
+	for k := range r.Out.Header {
+		if strings.HasPrefix(k, "X-Tailscale-") {
+			r.Out.Header.Del(k)
+		}
+	}
+	if s.SuppressWhois || s.client == nil {
+		return
+	}
+
+	ctx := r.In.Context()
+	if s.WhoisTimeout > 0 {
+		var cancel func()
+		ctx, cancel = context.WithTimeout(ctx, s.WhoisTimeout)
+		defer cancel()
+	}
+	who, err := s.client.WhoIs(ctx, r.In.RemoteAddr)
+	if err != nil {
+		slog.Warn("could not look up requestor identity",
+			"error", err,
+			"request", r.In,
+		)
+	}
+	h := r.Out.Header
+	h.Set("X-Tailscale-User", who.UserProfile.ID.String())
+	login := who.UserProfile.LoginName
+	h.Set("X-Tailscale-User-LoginName", login)
+	ll, ld, splitable := strings.Cut(login, "@")
+	if splitable {
+		h.Set("X-Tailscale-User-LoginName-Localpart", ll)
+		h.Set("X-Tailscale-User-LoginName-Domain", ld)
+	}
+	h.Set("X-Tailscale-User-DisplayName", who.UserProfile.DisplayName)
+	if who.UserProfile.ProfilePicURL != "" {
+		h.Set("X-Tailscale-User-ProfilePicURL", who.UserProfile.ProfilePicURL)
+	}
+	if len(who.Caps) > 0 {
+		h.Set("X-Tailscale-Caps", strings.Join(who.Caps, ", "))
+	}
+
+	h.Set("X-Tailscale-Node", who.Node.ID.String())
+	h.Set("X-Tailscale-Node-Name", who.Node.ComputedName)
+	if len(who.Node.Capabilities) > 0 {
+		h.Set("X-Tailscale-Node-Caps", strings.Join(who.Node.Capabilities, ", "))
+	}
+	if len(who.Node.Tags) > 0 {
+		h.Set("X-Tailscale-Node-Tags", strings.Join(who.Node.Tags, ", "))
+	}
+	return
 }
 
 // matchPrefixes acts like the http.StripPrefix middleware, except

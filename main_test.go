@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func TestFromArgs(t *testing.T) {
@@ -135,4 +136,32 @@ func TestRouting(t *testing.T) {
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
+}
+
+func TestHeaderSanitization(t *testing.T) {
+	testmux := http.NewServeMux()
+	testmux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		for k := range r.Header {
+			slog.Info("", "header", k)
+			assert.NotRegexp(t, "(?i)^X-Tailscale-", k)
+		}
+	})
+	ts := httptest.NewServer(testmux)
+	defer ts.Close()
+
+	s, _, err := tailnetSrvFromArgs([]string{"-name", "TestPrefixServing", "-ephemeral",
+		ts.URL,
+	})
+	require.NoError(t, err)
+	mux := s.mux(http.DefaultTransport)
+	proxy := httptest.NewServer(mux)
+	pc := proxy.Client()
+	req, err := http.NewRequest("GET", proxy.URL, nil)
+	require.NoError(t, err)
+	req.Header.Set("X-Tailscale-Evil", "true")
+	req.Header.Set("x-tailscale-evil", "true")
+	req.Header.Set("x-tAILSCALE-LoginName", "fake")
+	res, err := pc.Do(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, res.StatusCode)
 }

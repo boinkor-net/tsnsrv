@@ -68,3 +68,21 @@ The `-stripPrefix` flag tells tsnsrv to leave the prefix intact: By default, it 
 `tsnsrv -name hydra-webhook -funnel -prefix /api/push-github http://127.0.0.1:3001/api/push-github`
 which would be identical to
 `tsnsrv -name hydra-webhook -funnel -prefix /api/push-github -stripPrefix=false http://127.0.0.1:3001`
+
+### Passing requestor information to upstream services
+
+Unless given the `-suppressWhois` flag, `tsnsrv` will look up
+information about the requesting user and their node, and attach the
+following headers:
+
+* `X-Tailscale-User` - numeric ID of the user that made the request
+* `X-Tailscale-User-LoginName` - login name of the user that made the request: e.g., `foo@example.com`
+* `X-Tailscale-User-LoginName-Localpart` - login name of the user that made the request, but only the local part (e.g., `foo`)
+* `X-Tailscale-User-LoginName-Domain` - login name of the user that made the request, but only the domain name (e.g., `example.com`)
+* `X-Tailscale-User-DisplayName` - display name of the user
+* `X-Tailscale-User-ProfilePicURL` - their profile picture, if one exists
+* `X-Tailscale-Caps` - user capabilities
+* `X-Tailscale-Node` - numeric ID of the node originating the request
+* `X-Tailscale-Node-Name` - name of the node originating the request
+* `X-Tailscale-Node-Caps` - node device capabilities
+* `X-Tailscale-Node-Tags` - ACL tags on the origin node
