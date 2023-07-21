@@ -89,6 +89,18 @@
             default = true;
           };
 
+          whoisTimeout = mkOption {
+            description = "Maximum amount of time that a requestor lookup may take.";
+            type = types.nullOr types.str;
+            default = null;
+          };
+
+          suppressWhois = mkOption {
+            description = "Disable passing requestor information to upstream service";
+            type = types.bool;
+            default = false;
+          };
+
           toURL = mkOption {
             description = "URL to forward HTTP requests to";
             type = types.str;
@@ -125,6 +137,12 @@
                      -stateDir="$STATE_DIRECTORY/tsnet-tsnsrv" \
                      -authkeyPath="${value.authKeyPath}" \
                      -insecureHTTPS="${lib.boolToString value.insecureHTTPS}" \
+                     -suppressWhois="${lib.boolToString value.suppressWhois}" \
+                     ${
+                if value.whoisTimeout != null
+                then "-whoisTimeout=${value.whoisTimeout}"
+                else ""
+              } \
                      ${
                 if value.downstreamUnixAddr != null
                 then "-downstreamUnixAddr=${value.downstreamUnixAddr}"
