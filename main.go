@@ -265,7 +265,13 @@ func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) {
 	}
 	h := r.Out.Header
 	h.Set("X-Tailscale-User", who.UserProfile.ID.String())
-	h.Set("X-Tailscale-User-LoginName", who.UserProfile.LoginName)
+	login := who.UserProfile.LoginName
+	h.Set("X-Tailscale-User-LoginName", login)
+	ll, ld, splitable := strings.Cut(login, "@")
+	if splitable {
+		h.Set("X-Tailscale-User-LoginName-Localpart", ll)
+		h.Set("X-Tailscale-User-LoginName-Domain", ld)
+	}
 	h.Set("X-Tailscale-User-DisplayName", who.UserProfile.DisplayName)
 	if who.UserProfile.ProfilePicURL != "" {
 		h.Set("X-Tailscale-User-ProfilePicURL", who.UserProfile.ProfilePicURL)

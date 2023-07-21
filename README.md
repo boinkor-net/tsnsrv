@@ -76,7 +76,9 @@ information about the requesting user and their node, and attach the
 following headers:
 
 * `X-Tailscale-User` - numeric ID of the user that made the request
-* `X-Tailscale-User-LoginName` - login name of the user that made the request, e.g. `foo@example.com`
+* `X-Tailscale-User-LoginName` - login name of the user that made the request: e.g., `foo@example.com`
+* `X-Tailscale-User-LoginName-Localpart` - login name of the user that made the request, but only the local part (e.g., `foo`)
+* `X-Tailscale-User-LoginName-Domain` - login name of the user that made the request, but only the domain name (e.g., `example.com`)
 * `X-Tailscale-User-DisplayName` - display name of the user
 * `X-Tailscale-User-ProfilePicURL` - their profile picture, if one exists
 * `X-Tailscale-Caps` - user capabilities
