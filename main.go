@@ -234,7 +234,8 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 		"original", r.In.URL,
 		"rewritten", r.Out.URL,
 		"destURL", s.DestURL,
-		"whois_login_name", r.Out.Header.Get("X-Tailscale-User-LoginName"),
+		"origin_login", r.Out.Header.Get("X-Tailscale-User-LoginName"),
+		"origin_node", r.Out.Header.Get("X-Tailscale-Node-Name"),
 	)
 }
 
