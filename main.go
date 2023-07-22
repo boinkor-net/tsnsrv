@@ -18,6 +18,7 @@ import (
 	"golang.org/x/exp/slog"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"tailscale.com/client/tailscale"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
@@ -50,6 +51,7 @@ type TailnetSrv struct {
 	InsecureHTTPS                         bool
 	WhoisTimeout                          time.Duration
 	SuppressWhois                         bool
+	PrometheusAddr                        string
 }
 
 type validTailnetSrv struct {
@@ -78,6 +80,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.InsecureHTTPS, "insecureHTTPS", false, "Disable TLS certificate validation on upstream")
 	fs.DurationVar(&s.WhoisTimeout, "whoisTimeout", 1*time.Second, "Maximum amount of time to spend looking up client identities")
 	fs.BoolVar(&s.SuppressWhois, "suppressWhois", false, "Do not set X-Tailscale-User-* headers in upstream requests")
+	fs.StringVar(&s.PrometheusAddr, "prometheusAddr", ":9099", "Serve prometheus metrics from this address. Empty string to disable.")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
@@ -185,9 +188,12 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	mux := s.mux(transport)
+
+	err = s.setupPrometheus(srv)
 	if err != nil {
-		return err
+		slog.Error("Could not setup prometheus listener", "error", err)
 	}
+
 	slog.Info("Serving",
 		"name", s.Name,
 		"tailscaleIPs", status.TailscaleIPs,
@@ -213,6 +219,23 @@ func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
 	} else {
 		return srv.Listen("tcp", s.ListenAddr)
 	}
+}
+
+func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
+	if s.PrometheusAddr == "" {
+		return nil
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	listener, err := srv.Listen("tcp", s.PrometheusAddr)
+	if err != nil {
+		return fmt.Errorf("could not listen on prometheus address %v: %w", s.PrometheusAddr, err)
+	}
+	go func() {
+		slog.Error("failed to listen on prometheus address", "error", http.Serve(listener, mux))
+		os.Exit(20)
+	}()
+	return nil
 }
 
 func main() {

@@ -2,14 +2,85 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/exp/slog"
+	"tailscale.com/client/tailscale/apitype"
 )
+
+type contextKey struct{}
+
+var proxyContextKey = contextKey{}
+
+var (
+	requestDurations = promauto.NewSummary(prometheus.SummaryOpts{
+		Name:       "tsnsrv_request_duration_ns",
+		Help:       "Duration of requests served",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	})
+	responseStatusClasses = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "tsnsrv_response_status_classes",
+		Help: "Responses by status code class (1xx, etc)",
+	}, []string{"status_code_class"})
+	proxyErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "tsnsrv_proxy_errors",
+		Help: "Number of errors encountered proxying requests",
+	})
+)
+
+type proxyContext struct {
+	start        time.Time
+	who          *apitype.WhoIsResponse
+	originalURL  *url.URL
+	rewrittenURL *url.URL
+}
+
+func (c *proxyContext) observeResponse(res *http.Response) {
+	elapsed := time.Now().Sub(c.start)
+	requestDurations.Observe(float64(elapsed))
+
+	statusClass := fmt.Sprintf("%dxx", res.StatusCode/100)
+	responseStatusClasses.With(prometheus.Labels{"status_code_class": statusClass}).Inc()
+
+	login := ""
+	node := ""
+	if c.who != nil {
+		login = c.who.UserProfile.LoginName
+		node = c.who.Node.Name
+	}
+	slog.Info("served",
+		"original", c.originalURL,
+		"rewritten", c.rewrittenURL,
+		"origin_login", login,
+		"origin_node", node,
+		"duration", elapsed,
+		"http_status", res.StatusCode,
+	)
+}
+
+func (s *validTailnetSrv) modifyResponse(res *http.Response) error {
+	p := res.Request.Context().Value(proxyContextKey).(*proxyContext)
+	if p != nil {
+		p.observeResponse(res)
+	}
+	return nil
+}
+
+func (s *validTailnetSrv) errorHandler(rw http.ResponseWriter, r *http.Request, err error) {
+	slog.Warn("proxy error",
+		"error", err,
+	)
+	proxyErrors.Inc()
+	rw.WriteHeader(http.StatusBadGateway)
+}
 
 func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 	r.SetURL(s.DestURL)
@@ -38,18 +109,17 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 			r.Out.Header.Set("X-Forwarded-Port", port)
 		}
 	}
-	s.setWhoisHeaders(r)
-	slog.Info("rewrote request",
-		"original", r.In.URL,
-		"rewritten", r.Out.URL,
-		"destURL", s.DestURL,
-		"origin_login", r.Out.Header.Get("X-Tailscale-User-LoginName"),
-		"origin_node", r.Out.Header.Get("X-Tailscale-Node-Name"),
-	)
+	who := s.setWhoisHeaders(r)
+	r.Out = r.Out.WithContext(context.WithValue(r.Out.Context(), proxyContextKey, &proxyContext{
+		start:        time.Now(),
+		originalURL:  r.In.URL,
+		rewrittenURL: r.Out.URL,
+		who:          who,
+	}))
 }
 
 // Clean up and set user/node identity headers:
-func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) {
+func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.WhoIsResponse {
 	// First, clean out any input we received that looks like TS setting headers:
 	for k := range r.Out.Header {
 		if strings.HasPrefix(k, "X-Tailscale-") {
@@ -57,7 +127,7 @@ func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) {
 		}
 	}
 	if s.SuppressWhois || s.client == nil {
-		return
+		return nil
 	}
 
 	ctx := r.In.Context()
@@ -98,7 +168,7 @@ func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) {
 	if len(who.Node.Tags) > 0 {
 		h.Set("X-Tailscale-Node-Tags", strings.Join(who.Node.Tags, ", "))
 	}
-	return
+	return who
 }
 
 // matchPrefixes acts like the http.StripPrefix middleware, except
@@ -136,8 +206,10 @@ func matchPrefixes(prefixes []string, strip bool, handler http.Handler) http.Han
 
 func (s *validTailnetSrv) mux(transport http.RoundTripper) http.Handler {
 	proxy := &httputil.ReverseProxy{
-		Rewrite:   s.rewrite,
-		Transport: transport,
+		Rewrite:        s.rewrite,
+		ModifyResponse: s.modifyResponse,
+		ErrorHandler:   s.errorHandler,
+		Transport:      transport,
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/", matchPrefixes(s.AllowedPrefixes, s.StripPrefix, proxy))
