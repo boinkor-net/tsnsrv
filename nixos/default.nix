@@ -104,7 +104,7 @@
           upstreamHeaders = mkOption {
             description = "Headers to set on requests to upstream.";
             type = types.attrsOf types.str;
-            default = null;
+            default = {};
           };
 
           toURL = mkOption {
