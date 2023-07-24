@@ -19,15 +19,15 @@ func TestFromArgs(t *testing.T) {
 		ok   bool
 	}{
 		{"basic", []string{"-name", "foo", "http://example.com"}, true},
-		{"connect to unix", []string{"-name", "foo", "-downstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, true},
-		{"connect to TCP", []string{"-name", "foo", "-downstreamTCPAddr=127.0.0.1:80", "http://example.com"}, true},
+		{"connect to unix", []string{"-name", "foo", "-upstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, true},
+		{"connect to TCP", []string{"-name", "foo", "-upstreamTCPAddr=127.0.0.1:80", "http://example.com"}, true},
 		{"funnel", []string{"-name", "foo", "-funnel=true", "http://example.com"}, true},
 		{"funnelOnly", []string{"-name", "foo", "-funnel=true", "-funnelOnly", "http://example.com"}, true},
 		{"ephemeral", []string{"-name", "foo", "-ephemeral=true", "http://example.com"}, true},
 
 		// Expected to fail:
 		{"no args", []string{}, false},
-		{"both addrs", []string{"-name", "foo", "-downstreamTCPAddr=127.0.0.1:80", "-downstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, false},
+		{"both addrs", []string{"-name", "foo", "-upstreamTCPAddr=127.0.0.1:80", "-upstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, false},
 		{"plaintext on funnel", []string{"-name", "foo", "-plaintext=true", "-funnel", "http://example.com"}, false},
 		{"invalid funnelOnly", []string{"-name", "foo", "-funnelOnly", "http://example.com"}, false},
 		{"invalid destination URL", []string{"-name", "foo", "::--example.com"}, false},

@@ -60,23 +60,23 @@ func (h *headers) Set(value string) error {
 }
 
 type TailnetSrv struct {
-	DownstreamTCPAddr, DownstreamUnixAddr string
-	Ephemeral                             bool
-	Funnel, FunnelOnly                    bool
-	ListenAddr                            string
-	Name                                  string
-	RecommendedProxyHeaders               bool
-	ServePlaintext                        bool
-	Timeout                               time.Duration
-	AllowedPrefixes                       prefixes
-	StripPrefix                           bool
-	StateDir                              string
-	AuthkeyPath                           string
-	InsecureHTTPS                         bool
-	WhoisTimeout                          time.Duration
-	SuppressWhois                         bool
-	PrometheusAddr                        string
-	UpstreamHeaders                       headers
+	UpstreamTCPAddr, UpstreamUnixAddr string
+	Ephemeral                         bool
+	Funnel, FunnelOnly                bool
+	ListenAddr                        string
+	Name                              string
+	RecommendedProxyHeaders           bool
+	ServePlaintext                    bool
+	Timeout                           time.Duration
+	AllowedPrefixes                   prefixes
+	StripPrefix                       bool
+	StateDir                          string
+	AuthkeyPath                       string
+	InsecureHTTPS                     bool
+	WhoisTimeout                      time.Duration
+	SuppressWhois                     bool
+	PrometheusAddr                    string
+	UpstreamHeaders                   headers
 }
 
 type validTailnetSrv struct {
@@ -88,8 +88,8 @@ type validTailnetSrv struct {
 func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
 	s := &TailnetSrv{}
 	var fs = flag.NewFlagSet("tsnsrv", flag.ExitOnError)
-	fs.StringVar(&s.DownstreamTCPAddr, "downstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
-	fs.StringVar(&s.DownstreamUnixAddr, "downstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
+	fs.StringVar(&s.UpstreamTCPAddr, "upstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
+	fs.StringVar(&s.UpstreamUnixAddr, "upstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
 	fs.BoolVar(&s.Ephemeral, "ephemeral", false, "Declare this service ephemeral")
 	fs.BoolVar(&s.Funnel, "funnel", false, "Expose a funnel service.")
 	fs.BoolVar(&s.FunnelOnly, "funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
@@ -131,8 +131,8 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	if s.ServePlaintext && s.Funnel {
 		errs = append(errs, errors.New("can not serve plaintext on a funnel service."))
 	}
-	if s.DownstreamTCPAddr != "" && s.DownstreamUnixAddr != "" {
-		errs = append(errs, errors.New("can only proxy to one address at a time, pass either -downstreamUnixAddr or -downstreamTCPAddr"))
+	if s.UpstreamTCPAddr != "" && s.UpstreamUnixAddr != "" {
+		errs = append(errs, errors.New("can only proxy to one address at a time, pass either -upstreamUnixAddr or -upstreamTCPAddr"))
 	}
 	if !s.Funnel && s.FunnelOnly {
 		errs = append(errs, errors.New("-funnel is required if -funnelOnly is set."))
@@ -199,14 +199,14 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	}
 
 	dial := srv.Dial
-	if s.DownstreamTCPAddr != "" {
+	if s.UpstreamTCPAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-			return srv.Dial(ctx, "tcp", s.DownstreamTCPAddr)
+			return srv.Dial(ctx, "tcp", s.UpstreamTCPAddr)
 		}
-	} else if s.DownstreamUnixAddr != "" {
+	} else if s.UpstreamUnixAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{}
-			return d.DialContext(ctx, "unix", s.DownstreamUnixAddr)
+			return d.DialContext(ctx, "unix", s.UpstreamUnixAddr)
 		}
 	}
 	transport := &http.Transport{DialContext: dial}

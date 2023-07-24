@@ -71,7 +71,7 @@
             default = false;
           };
 
-          downstreamUnixAddr = mkOption {
+          upstreamUnixAddr = mkOption {
             description = "Connect only to the given UNIX Domain Socket";
             type = types.nullOr types.path;
             default = null;
@@ -150,8 +150,8 @@
                 else ""
               } \
                      ${
-                if value.downstreamUnixAddr != null
-                then "-downstreamUnixAddr=${lib.escapeShellArg value.downstreamUnixAddr}"
+                if value.upstreamUnixAddr != null
+                then "-upstreamUnixAddr=${lib.escapeShellArg value.upstreamUnixAddr}"
                 else ""
               } \
               ${
