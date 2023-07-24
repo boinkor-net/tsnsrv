@@ -35,23 +35,48 @@ func (p *prefixes) Set(value string) error {
 	return nil
 }
 
+type headers http.Header
+
+func (h *headers) String() string {
+	var coll []string
+	for name, vals := range *h {
+		for _, val := range vals {
+			coll = append(coll, fmt.Sprintf("%s: %s", name, val))
+		}
+	}
+	return strings.Join(coll, ", ")
+}
+
+func (h *headers) Set(value string) error {
+	name, val, ok := strings.Cut(value, ": ")
+	if !ok {
+		return fmt.Errorf("Invalid header format %#v, must be 'Header-Name: value'", value)
+	}
+	if *h == nil {
+		*h = headers{}
+	}
+	http.Header((*h)).Add(name, val)
+	return nil
+}
+
 type TailnetSrv struct {
-	DownstreamTCPAddr, DownstreamUnixAddr string
-	Ephemeral                             bool
-	Funnel, FunnelOnly                    bool
-	ListenAddr                            string
-	Name                                  string
-	RecommendedProxyHeaders               bool
-	ServePlaintext                        bool
-	Timeout                               time.Duration
-	AllowedPrefixes                       prefixes
-	StripPrefix                           bool
-	StateDir                              string
-	AuthkeyPath                           string
-	InsecureHTTPS                         bool
-	WhoisTimeout                          time.Duration
-	SuppressWhois                         bool
-	PrometheusAddr                        string
+	UpstreamTCPAddr, UpstreamUnixAddr string
+	Ephemeral                         bool
+	Funnel, FunnelOnly                bool
+	ListenAddr                        string
+	Name                              string
+	RecommendedProxyHeaders           bool
+	ServePlaintext                    bool
+	Timeout                           time.Duration
+	AllowedPrefixes                   prefixes
+	StripPrefix                       bool
+	StateDir                          string
+	AuthkeyPath                       string
+	InsecureHTTPS                     bool
+	WhoisTimeout                      time.Duration
+	SuppressWhois                     bool
+	PrometheusAddr                    string
+	UpstreamHeaders                   headers
 }
 
 type validTailnetSrv struct {
@@ -63,8 +88,8 @@ type validTailnetSrv struct {
 func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
 	s := &TailnetSrv{}
 	var fs = flag.NewFlagSet("tsnsrv", flag.ExitOnError)
-	fs.StringVar(&s.DownstreamTCPAddr, "downstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
-	fs.StringVar(&s.DownstreamUnixAddr, "downstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
+	fs.StringVar(&s.UpstreamTCPAddr, "upstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
+	fs.StringVar(&s.UpstreamUnixAddr, "upstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
 	fs.BoolVar(&s.Ephemeral, "ephemeral", false, "Declare this service ephemeral")
 	fs.BoolVar(&s.Funnel, "funnel", false, "Expose a funnel service.")
 	fs.BoolVar(&s.FunnelOnly, "funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
@@ -81,6 +106,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.DurationVar(&s.WhoisTimeout, "whoisTimeout", 1*time.Second, "Maximum amount of time to spend looking up client identities")
 	fs.BoolVar(&s.SuppressWhois, "suppressWhois", false, "Do not set X-Tailscale-User-* headers in upstream requests")
 	fs.StringVar(&s.PrometheusAddr, "prometheusAddr", ":9099", "Serve prometheus metrics from this address. Empty string to disable.")
+	fs.Var(&s.UpstreamHeaders, "upstreamHeader", "Additional headers (separated by ': ') on requests to upstream.")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
@@ -105,8 +131,8 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	if s.ServePlaintext && s.Funnel {
 		errs = append(errs, errors.New("can not serve plaintext on a funnel service."))
 	}
-	if s.DownstreamTCPAddr != "" && s.DownstreamUnixAddr != "" {
-		errs = append(errs, errors.New("can only proxy to one address at a time, pass either -downstreamUnixAddr or -downstreamTCPAddr"))
+	if s.UpstreamTCPAddr != "" && s.UpstreamUnixAddr != "" {
+		errs = append(errs, errors.New("can only proxy to one address at a time, pass either -upstreamUnixAddr or -upstreamTCPAddr"))
 	}
 	if !s.Funnel && s.FunnelOnly {
 		errs = append(errs, errors.New("-funnel is required if -funnelOnly is set."))
@@ -173,14 +199,14 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	}
 
 	dial := srv.Dial
-	if s.DownstreamTCPAddr != "" {
+	if s.UpstreamTCPAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-			return srv.Dial(ctx, "tcp", s.DownstreamTCPAddr)
+			return srv.Dial(ctx, "tcp", s.UpstreamTCPAddr)
 		}
-	} else if s.DownstreamUnixAddr != "" {
+	} else if s.UpstreamUnixAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{}
-			return d.DialContext(ctx, "unix", s.DownstreamUnixAddr)
+			return d.DialContext(ctx, "unix", s.UpstreamUnixAddr)
 		}
 	}
 	transport := &http.Transport{DialContext: dial}

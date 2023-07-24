@@ -88,7 +88,6 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 		r.Out.URL.Path = s.DestURL.Path
 	}
 
-	// Set known proxy headers:
 	r.SetXForwarded()
 	if s.RecommendedProxyHeaders {
 		if r.In.TLS == nil {
@@ -109,6 +108,11 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 			r.Out.Header.Set("X-Forwarded-Port", port)
 		}
 	}
+
+	for h, vals := range s.UpstreamHeaders {
+		r.Out.Header[h] = vals
+	}
+
 	who := s.setWhoisHeaders(r)
 	r.Out = r.Out.WithContext(context.WithValue(r.Out.Context(), proxyContextKey, &proxyContext{
 		start:        time.Now(),
