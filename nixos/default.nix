@@ -101,6 +101,12 @@
             default = false;
           };
 
+          upstreamHeaders = mkOption {
+            description = "Headers to set on requests to upstream.";
+            type = types.attrsOf types.str;
+            default = null;
+          };
+
           toURL = mkOption {
             description = "URL to forward HTTP requests to";
             type = types.str;
@@ -151,7 +157,10 @@
               ${
                 lib.concatMapStringsSep " \\\n" (p: "-prefix \"${p}\"") value.prefixes
               } \
-                     "${value.toURL}"
+              ${
+                lib.concatMapStringsSep " \\\n" (p: "-upstreamHeader ${lib.escapeShellArg p}") (lib.mapAttrsToList (name: value: "${name}: ${value}") value.upstreamHeaders)
+              } \
+                     ${lib.escapeShellArg value.toURL}
             '';
             serviceConfig = {
               DynamicUser = true;

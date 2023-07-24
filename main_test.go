@@ -165,3 +165,41 @@ func TestHeaderSanitization(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 }
+
+func TestCustomHeaders(t *testing.T) {
+	for _, elt := range []struct {
+		name, hn, hv string
+	}{
+		{"custom", "X-Something-Custom", "hi there"},
+		{"X-Forwarded-Server", "X-Forwarded-Server", "something-made-up.example.com"},
+	} {
+		test := elt
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			testmux := http.NewServeMux()
+			testmux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				for k := range r.Header {
+					slog.Info("", "header", k)
+				}
+				assert.Equal(t, test.hv, r.Header.Get(test.hn))
+			})
+			ts := httptest.NewServer(testmux)
+			defer ts.Close()
+
+			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestPrefixServing",
+				"-upstreamHeader", fmt.Sprintf("%v: %v", test.hn, test.hv),
+				ts.URL,
+			})
+			require.NoError(t, err)
+			mux := s.mux(http.DefaultTransport)
+			proxy := httptest.NewServer(mux)
+			pc := proxy.Client()
+			req, err := http.NewRequest("GET", proxy.URL, nil)
+			require.NoError(t, err)
+			res, err := pc.Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+		})
+	}
+}

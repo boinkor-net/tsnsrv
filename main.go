@@ -35,6 +35,30 @@ func (p *prefixes) Set(value string) error {
 	return nil
 }
 
+type headers http.Header
+
+func (h *headers) String() string {
+	var coll []string
+	for name, vals := range *h {
+		for _, val := range vals {
+			coll = append(coll, fmt.Sprintf("%s: %s", name, val))
+		}
+	}
+	return strings.Join(coll, ", ")
+}
+
+func (h *headers) Set(value string) error {
+	name, val, ok := strings.Cut(value, ": ")
+	if !ok {
+		return fmt.Errorf("Invalid header format %#v, must be 'Header-Name: value'", value)
+	}
+	if *h == nil {
+		*h = headers{}
+	}
+	http.Header((*h)).Add(name, val)
+	return nil
+}
+
 type TailnetSrv struct {
 	DownstreamTCPAddr, DownstreamUnixAddr string
 	Ephemeral                             bool
@@ -52,6 +76,7 @@ type TailnetSrv struct {
 	WhoisTimeout                          time.Duration
 	SuppressWhois                         bool
 	PrometheusAddr                        string
+	UpstreamHeaders                       headers
 }
 
 type validTailnetSrv struct {
@@ -81,6 +106,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.DurationVar(&s.WhoisTimeout, "whoisTimeout", 1*time.Second, "Maximum amount of time to spend looking up client identities")
 	fs.BoolVar(&s.SuppressWhois, "suppressWhois", false, "Do not set X-Tailscale-User-* headers in upstream requests")
 	fs.StringVar(&s.PrometheusAddr, "prometheusAddr", ":9099", "Serve prometheus metrics from this address. Empty string to disable.")
+	fs.Var(&s.UpstreamHeaders, "upstreamHeader", "Additional headers (separated by ': ') on requests to upstream.")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
