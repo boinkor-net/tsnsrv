@@ -134,28 +134,28 @@
             wantedBy = ["multi-user.target"];
             after = ["network-online.target"];
             script = ''
-              exec ${value.package}/bin/tsnsrv -name "${name}" \
+              exec ${value.package}/bin/tsnsrv -name ${lib.escapeShellArg name} \
                      -ephemeral=${lib.boolToString value.ephemeral} \
                      -funnel=${lib.boolToString value.funnel} \
                      -plaintext=${lib.boolToString value.plaintext} \
-                     -listenAddr="${value.listenAddr}" \
-                     -stripPrefix="${lib.boolToString value.stripPrefix}" \
+                     -listenAddr=${lib.escapeShellArg value.listenAddr} \
+                     -stripPrefix=${lib.boolToString value.stripPrefix} \
                      -stateDir="$STATE_DIRECTORY/tsnet-tsnsrv" \
-                     -authkeyPath="${value.authKeyPath}" \
-                     -insecureHTTPS="${lib.boolToString value.insecureHTTPS}" \
-                     -suppressWhois="${lib.boolToString value.suppressWhois}" \
+                     -authkeyPath=${lib.escapeShellArg value.authKeyPath} \
+                     -insecureHTTPS=${lib.boolToString value.insecureHTTPS} \
+                     -suppressWhois=${lib.boolToString value.suppressWhois} \
                      ${
                 if value.whoisTimeout != null
-                then "-whoisTimeout=${value.whoisTimeout}"
+                then "-whoisTimeout=${lib.escapeShellArg value.whoisTimeout}"
                 else ""
               } \
                      ${
                 if value.downstreamUnixAddr != null
-                then "-downstreamUnixAddr=${value.downstreamUnixAddr}"
+                then "-downstreamUnixAddr=${lib.escapeShellArg value.downstreamUnixAddr}"
                 else ""
               } \
               ${
-                lib.concatMapStringsSep " \\\n" (p: "-prefix \"${p}\"") value.prefixes
+                lib.concatMapStringsSep " \\\n" (p: "-prefix ${lib.escapeShellArg p}") value.prefixes
               } \
               ${
                 lib.concatMapStringsSep " \\\n" (p: "-upstreamHeader ${lib.escapeShellArg p}") (lib.mapAttrsToList (name: value: "${name}: ${value}") value.upstreamHeaders)
