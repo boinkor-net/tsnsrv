@@ -107,6 +107,12 @@
             default = {};
           };
 
+          suppressTailnetDialer = mkOption {
+            description = "Disable using the tsnet-provided dialer, which can sometimes cause issues hitting addresses outside the tailnet";
+            type = types.bool;
+            default = false;
+          };
+
           toURL = mkOption {
             description = "URL to forward HTTP requests to";
             type = types.str;
@@ -144,6 +150,7 @@
                      -authkeyPath=${lib.escapeShellArg value.authKeyPath} \
                      -insecureHTTPS=${lib.boolToString value.insecureHTTPS} \
                      -suppressWhois=${lib.boolToString value.suppressWhois} \
+                     -suppressTailnetDialer=${lib.boolToString value.suppressTailnetDialer} \
                      ${
                 if value.whoisTimeout != null
                 then "-whoisTimeout=${lib.escapeShellArg value.whoisTimeout}"
