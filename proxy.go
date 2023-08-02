@@ -146,6 +146,7 @@ func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.Who
 			"error", err,
 			"request", r.In,
 		)
+		return nil
 	}
 	h := r.Out.Header
 	h.Set("X-Tailscale-User", who.UserProfile.ID.String())
