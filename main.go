@@ -77,6 +77,7 @@ type TailnetSrv struct {
 	SuppressWhois                     bool
 	PrometheusAddr                    string
 	UpstreamHeaders                   headers
+	SuppressTailnetDialer             bool
 }
 
 type validTailnetSrv struct {
@@ -107,6 +108,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.SuppressWhois, "suppressWhois", false, "Do not set X-Tailscale-User-* headers in upstream requests")
 	fs.StringVar(&s.PrometheusAddr, "prometheusAddr", ":9099", "Serve prometheus metrics from this address. Empty string to disable.")
 	fs.Var(&s.UpstreamHeaders, "upstreamHeader", "Additional headers (separated by ': ') on requests to upstream.")
+	fs.BoolVar(&s.SuppressTailnetDialer, "suppressTailnetDialer", false, "Whether to use the stdlib net.Dialer instead of a tailnet-enabled one")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
@@ -199,9 +201,14 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	}
 
 	dial := srv.Dial
+	if s.SuppressTailnetDialer {
+		d := net.Dialer{}
+		dial = d.DialContext
+	}
 	if s.UpstreamTCPAddr != "" {
+		dialOrig := dial
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-			return srv.Dial(ctx, "tcp", s.UpstreamTCPAddr)
+			return dialOrig(ctx, "tcp", s.UpstreamTCPAddr)
 		}
 	} else if s.UpstreamUnixAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
