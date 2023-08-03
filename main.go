@@ -15,10 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/exp/slog"
-
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/exp/slog"
 	"tailscale.com/client/tailscale"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
@@ -47,10 +46,12 @@ func (h *headers) String() string {
 	return strings.Join(coll, ", ")
 }
 
+var errHeaderFormat = errors.New("header format must be 'Header-Name: value'")
+
 func (h *headers) Set(value string) error {
 	name, val, ok := strings.Cut(value, ": ")
 	if !ok {
-		return fmt.Errorf("Invalid header format %#v, must be 'Header-Name: value'", value)
+		return fmt.Errorf("%w: Invalid header format %#v", errHeaderFormat, value)
 	}
 	if *h == nil {
 		*h = headers{}
@@ -88,7 +89,7 @@ type validTailnetSrv struct {
 
 func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
 	s := &TailnetSrv{}
-	var fs = flag.NewFlagSet("tsnsrv", flag.ExitOnError)
+	fs := flag.NewFlagSet("tsnsrv", flag.ExitOnError)
 	fs.StringVar(&s.UpstreamTCPAddr, "upstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
 	fs.StringVar(&s.UpstreamUnixAddr, "upstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
 	fs.BoolVar(&s.Ephemeral, "ephemeral", false, "Declare this service ephemeral")
@@ -116,40 +117,45 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 		Exec:       func(context.Context, []string) error { return nil },
 	}
 	if err := root.Parse(args); err != nil {
-		return nil, root, err
+		return nil, root, fmt.Errorf("could not parse args: %w", err)
 	}
 	valid, err := s.validate(root.FlagSet.Args())
 	if err != nil {
-		return nil, root, err
+		return nil, root, fmt.Errorf("failed to validate args: %w", err)
 	}
 	return valid, root, nil
 }
 
+var errNameRequired = errors.New("tsnsrv needs a -name")
+var errNoPlaintextOnFunnel = errors.New("can not serve plaintext on a funnel service")
+var errOnlyOneAddrType = errors.New("can only proxy to one address at a time, pass either -upstreamUnixAddr or -upstreamTCPAddr")
+var errFunnelRequired = errors.New("-funnel is required if -funnelOnly is set")
+var errNoDestURL = errors.New("tsnsrv requires a destination URL")
+
 func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	var errs []error
 	if s.Name == "" {
-		errs = append(errs, errors.New("tsnsrv needs a -name."))
+		errs = append(errs, errNameRequired)
 	}
 	if s.ServePlaintext && s.Funnel {
-		errs = append(errs, errors.New("can not serve plaintext on a funnel service."))
+		errs = append(errs, errNoPlaintextOnFunnel)
 	}
 	if s.UpstreamTCPAddr != "" && s.UpstreamUnixAddr != "" {
-		errs = append(errs, errors.New("can only proxy to one address at a time, pass either -upstreamUnixAddr or -upstreamTCPAddr"))
+		errs = append(errs, errOnlyOneAddrType)
 	}
 	if !s.Funnel && s.FunnelOnly {
-		errs = append(errs, errors.New("-funnel is required if -funnelOnly is set."))
+		errs = append(errs, errFunnelRequired)
 	}
 
 	if len(args) != 1 {
-		errs = append(errs, errors.New("tsnsrv requires a destination URL."))
+		return nil, errors.Join(append(errs, errNoDestURL)...)
+	}
+	destURL, err := url.Parse(args[0])
+	if err != nil {
+		errs = append(errs, fmt.Errorf("invalid destination URL %#v: %w", args[0], err))
 	}
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
-	}
-
-	destURL, err := url.Parse(args[0])
-	if err != nil {
-		return nil, fmt.Errorf("invalid destination URL %#v: %w", args[0], err)
 	}
 
 	valid := validTailnetSrv{TailnetSrv: *s, DestURL: destURL}
@@ -159,7 +165,7 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 func authkeyFromFile(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("opening authkey %#v: %w", path, err)
 	}
 	defer f.Close()
 	key, err := io.ReadAll(f)
@@ -208,17 +214,25 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	if s.UpstreamTCPAddr != "" {
 		dialOrig := dial
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-			return dialOrig(ctx, "tcp", s.UpstreamTCPAddr)
+			conn, err := dialOrig(ctx, "tcp", s.UpstreamTCPAddr)
+			if err != nil {
+				return nil, fmt.Errorf("connecting to tcp %v: %w", s.UpstreamTCPAddr, err)
+			}
+			return conn, nil
 		}
 	} else if s.UpstreamUnixAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{}
-			return d.DialContext(ctx, "unix", s.UpstreamUnixAddr)
+			conn, err := d.DialContext(ctx, "unix", s.UpstreamUnixAddr)
+			if err != nil {
+				return nil, fmt.Errorf("connecting to unix %v: %w", s.UpstreamUnixAddr, err)
+			}
+			return conn, nil
 		}
 	}
 	transport := &http.Transport{DialContext: dial}
 	if s.InsecureHTTPS {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec This is explicitly requested by the user
 	}
 	mux := s.mux(transport)
 
@@ -237,21 +251,32 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 		"funnel", s.Funnel,
 		"funnelOnly", s.FunnelOnly,
 	)
-	return fmt.Errorf("while serving: %w", http.Serve(l, mux))
+	server := http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 1 * time.Second,
+	}
+	return fmt.Errorf("while serving: %w", server.Serve(l))
 }
 
 func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
-	if s.Funnel {
+	var l net.Listener
+	var err error
+	switch {
+	case s.Funnel:
 		opts := []tsnet.FunnelOption{}
 		if s.FunnelOnly {
 			opts = append(opts, tsnet.FunnelOnly())
 		}
-		return srv.ListenFunnel("tcp", s.ListenAddr, opts...)
-	} else if !s.ServePlaintext {
-		return srv.ListenTLS("tcp", s.ListenAddr)
-	} else {
-		return srv.Listen("tcp", s.ListenAddr)
+		l, err = srv.ListenFunnel("tcp", s.ListenAddr, opts...)
+	case !s.ServePlaintext:
+		l, err = srv.ListenTLS("tcp", s.ListenAddr)
+	default:
+		l, err = srv.Listen("tcp", s.ListenAddr)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("listener for %v: %w", srv, err)
+	}
+	return l, nil
 }
 
 func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
@@ -265,7 +290,11 @@ func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
 		return fmt.Errorf("could not listen on prometheus address %v: %w", s.PrometheusAddr, err)
 	}
 	go func() {
-		slog.Error("failed to listen on prometheus address", "error", http.Serve(listener, mux))
+		server := http.Server{
+			Handler:           mux,
+			ReadHeaderTimeout: 1 * time.Second,
+		}
+		slog.Error("failed to listen on prometheus address", "error", server.Serve(listener))
 		os.Exit(20)
 	}()
 	return nil
@@ -274,7 +303,7 @@ func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
 func main() {
 	s, cmd, err := tailnetSrvFromArgs(os.Args[1:])
 	if err != nil {
-		log.Fatalf("Invalid CLI usage. Errors:\n%v\n\n%v", err, ffcli.DefaultUsageFunc(cmd))
+		log.Fatalf("Invalid CLI usage. Errors:\n%v\n\n%v", errors.Unwrap(err), ffcli.DefaultUsageFunc(cmd))
 	}
 	if err := s.run(context.Background()); err != nil {
 		log.Fatal(err)

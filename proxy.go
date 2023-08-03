@@ -74,7 +74,7 @@ func (s *validTailnetSrv) modifyResponse(res *http.Response) error {
 	return nil
 }
 
-func (s *validTailnetSrv) errorHandler(rw http.ResponseWriter, r *http.Request, err error) {
+func (s *validTailnetSrv) errorHandler(rw http.ResponseWriter, _ *http.Request, err error) {
 	slog.Warn("proxy error",
 		"error", err,
 	)
@@ -122,7 +122,7 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 	}))
 }
 
-// Clean up and set user/node identity headers:
+// Clean up and set user/node identity headers:.
 func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.WhoIsResponse {
 	// First, clean out any input we received that looks like TS setting headers:
 	for k := range r.Out.Header {

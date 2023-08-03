@@ -9,11 +9,8 @@ on:
   schedule:
     - cron: "32 19 * * *"
   push:
-    branches: ["main"]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
-  pull_request:
-    branches: ["main"]
   workflow_dispatch:
   workflow_call:
 
@@ -25,6 +22,7 @@ env:
 
 jobs:
   docker_build:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
