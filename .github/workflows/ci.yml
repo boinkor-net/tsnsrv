@@ -1,0 +1,42 @@
+"jobs":
+  "any_ci":
+    "runs-on": "ubuntu-latest"
+    "steps":
+    - "name": "Immediate success for improved visibility on github merge queue"
+      "run": "true"
+  "docker-publish":
+    "secrets": "inherit"
+    "uses": "./.github/workflows/docker-publish.yml"
+  "go":
+    "secrets": "inherit"
+    "uses": "./.github/workflows/ci_go.yml"
+  "overall_ci":
+    "if": "always()"
+    "needs":
+    - "docker-publish"
+    - "go"
+    - "tests"
+    "permissions":
+      "actions": "read"
+    "runs-on": "ubuntu-latest"
+    "steps":
+    - "id": "check"
+      "uses": "martialonline/workflow-status@v4"
+    - "if": "steps.check.outputs.status != 'success'"
+      "name": "non-success detected"
+      "run": "false"
+    - "if": "steps.check.outputs.status == 'success'"
+      "name": "success"
+      "run": "true"
+  "tests":
+    "secrets": "inherit"
+    "uses": "./.github/workflows/tests.yml"
+"name": "CI"
+"on":
+  "merge_group": {}
+  "pull_request":
+    "branches": "main"
+  "push":
+    "branches":
+    - "main"
+    - "staging"
