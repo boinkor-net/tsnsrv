@@ -165,7 +165,7 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 func authkeyFromFile(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("opening authkey %#v: %w", path, err)
 	}
 	defer f.Close()
 	key, err := io.ReadAll(f)
@@ -214,12 +214,20 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	if s.UpstreamTCPAddr != "" {
 		dialOrig := dial
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-			return dialOrig(ctx, "tcp", s.UpstreamTCPAddr)
+			conn, err := dialOrig(ctx, "tcp", s.UpstreamTCPAddr)
+			if err != nil {
+				return nil, fmt.Errorf("connecting to tcp %v: %w", s.UpstreamTCPAddr, err)
+			}
+			return conn, nil
 		}
 	} else if s.UpstreamUnixAddr != "" {
 		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{}
-			return d.DialContext(ctx, "unix", s.UpstreamUnixAddr)
+			conn, err := d.DialContext(ctx, "unix", s.UpstreamUnixAddr)
+			if err != nil {
+				return nil, fmt.Errorf("connecting to unix %v: %w", s.UpstreamUnixAddr, err)
+			}
+			return conn, nil
 		}
 	}
 	transport := &http.Transport{DialContext: dial}
@@ -251,18 +259,24 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 }
 
 func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
+	var l net.Listener
+	var err error
 	switch {
 	case s.Funnel:
 		opts := []tsnet.FunnelOption{}
 		if s.FunnelOnly {
 			opts = append(opts, tsnet.FunnelOnly())
 		}
-		return srv.ListenFunnel("tcp", s.ListenAddr, opts...)
+		l, err = srv.ListenFunnel("tcp", s.ListenAddr, opts...)
 	case !s.ServePlaintext:
-		return srv.ListenTLS("tcp", s.ListenAddr)
+		l, err = srv.ListenTLS("tcp", s.ListenAddr)
 	default:
-		return srv.Listen("tcp", s.ListenAddr)
+		l, err = srv.Listen("tcp", s.ListenAddr)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("listener for %v: %w", srv, err)
+	}
+	return l, nil
 }
 
 func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
