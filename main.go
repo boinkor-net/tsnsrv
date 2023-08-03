@@ -15,10 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/exp/slog"
-
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/exp/slog"
 	"tailscale.com/client/tailscale"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
@@ -88,7 +87,7 @@ type validTailnetSrv struct {
 
 func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
 	s := &TailnetSrv{}
-	var fs = flag.NewFlagSet("tsnsrv", flag.ExitOnError)
+	fs := flag.NewFlagSet("tsnsrv", flag.ExitOnError)
 	fs.StringVar(&s.UpstreamTCPAddr, "upstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
 	fs.StringVar(&s.UpstreamUnixAddr, "upstreamUnixAddr", "", "Proxy to an HTTP service listening on this UNIX domain socket address")
 	fs.BoolVar(&s.Ephemeral, "ephemeral", false, "Declare this service ephemeral")
