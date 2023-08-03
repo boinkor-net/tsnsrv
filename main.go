@@ -117,11 +117,11 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 		Exec:       func(context.Context, []string) error { return nil },
 	}
 	if err := root.Parse(args); err != nil {
-		return nil, root, err
+		return nil, root, fmt.Errorf("could not parse args: %w", err)
 	}
 	valid, err := s.validate(root.FlagSet.Args())
 	if err != nil {
-		return nil, root, err
+		return nil, root, fmt.Errorf("failed to validate args: %w", err)
 	}
 	return valid, root, nil
 }
@@ -148,15 +148,14 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	}
 
 	if len(args) != 1 {
-		errs = append(errs, errNoDestURL)
+		return nil, errors.Join(append(errs, errNoDestURL)...)
+	}
+	destURL, err := url.Parse(args[0])
+	if err != nil {
+		errs = append(errs, fmt.Errorf("invalid destination URL %#v: %w", args[0], err))
 	}
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
-	}
-
-	destURL, err := url.Parse(args[0])
-	if err != nil {
-		return nil, fmt.Errorf("invalid destination URL %#v: %w", args[0], err)
 	}
 
 	valid := validTailnetSrv{TailnetSrv: *s, DestURL: destURL}
@@ -290,7 +289,7 @@ func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
 func main() {
 	s, cmd, err := tailnetSrvFromArgs(os.Args[1:])
 	if err != nil {
-		log.Fatalf("Invalid CLI usage. Errors:\n%v\n\n%v", err, ffcli.DefaultUsageFunc(cmd))
+		log.Fatalf("Invalid CLI usage. Errors:\n%v\n\n%v", errors.Unwrap(err), ffcli.DefaultUsageFunc(cmd))
 	}
 	if err := s.run(context.Background()); err != nil {
 		log.Fatal(err)
