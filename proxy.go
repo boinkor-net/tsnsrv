@@ -74,7 +74,7 @@ func (s *validTailnetSrv) modifyResponse(res *http.Response) error {
 	return nil
 }
 
-func (s *validTailnetSrv) errorHandler(rw http.ResponseWriter, r *http.Request, err error) {
+func (s *validTailnetSrv) errorHandler(rw http.ResponseWriter, _ *http.Request, err error) {
 	slog.Warn("proxy error",
 		"error", err,
 	)
