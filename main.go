@@ -225,7 +225,7 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	}
 	transport := &http.Transport{DialContext: dial}
 	if s.InsecureHTTPS {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec This is explicitly requested by the user
 	}
 	mux := s.mux(transport)
 
@@ -244,7 +244,11 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 		"funnel", s.Funnel,
 		"funnelOnly", s.FunnelOnly,
 	)
-	return fmt.Errorf("while serving: %w", http.Serve(l, mux))
+	server := http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 1 * time.Second,
+	}
+	return fmt.Errorf("while serving: %w", server.Serve(l))
 }
 
 func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
@@ -273,7 +277,11 @@ func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
 		return fmt.Errorf("could not listen on prometheus address %v: %w", s.PrometheusAddr, err)
 	}
 	go func() {
-		slog.Error("failed to listen on prometheus address", "error", http.Serve(listener, mux))
+		server := http.Server{
+			Handler:           mux,
+			ReadHeaderTimeout: 1 * time.Second,
+		}
+		slog.Error("failed to listen on prometheus address", "error", server.Serve(listener))
 		os.Exit(20)
 	}()
 	return nil
