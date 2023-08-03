@@ -19,15 +19,15 @@ func TestFromArgs(t *testing.T) {
 		ok   bool
 	}{
 		{"basic", []string{"-name", "foo", "http://example.com"}, true},
-		{"connect to unix", []string{"-name", "foo", "-downstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, true},
-		{"connect to TCP", []string{"-name", "foo", "-downstreamTCPAddr=127.0.0.1:80", "http://example.com"}, true},
+		{"connect to unix", []string{"-name", "foo", "-upstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, true},
+		{"connect to TCP", []string{"-name", "foo", "-upstreamTCPAddr=127.0.0.1:80", "http://example.com"}, true},
 		{"funnel", []string{"-name", "foo", "-funnel=true", "http://example.com"}, true},
 		{"funnelOnly", []string{"-name", "foo", "-funnel=true", "-funnelOnly", "http://example.com"}, true},
 		{"ephemeral", []string{"-name", "foo", "-ephemeral=true", "http://example.com"}, true},
 
 		// Expected to fail:
 		{"no args", []string{}, false},
-		{"both addrs", []string{"-name", "foo", "-downstreamTCPAddr=127.0.0.1:80", "-downstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, false},
+		{"both addrs", []string{"-name", "foo", "-upstreamTCPAddr=127.0.0.1:80", "-upstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, false},
 		{"plaintext on funnel", []string{"-name", "foo", "-plaintext=true", "-funnel", "http://example.com"}, false},
 		{"invalid funnelOnly", []string{"-name", "foo", "-funnelOnly", "http://example.com"}, false},
 		{"invalid destination URL", []string{"-name", "foo", "::--example.com"}, false},
@@ -164,4 +164,42 @@ func TestHeaderSanitization(t *testing.T) {
 	res, err := pc.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
+}
+
+func TestCustomHeaders(t *testing.T) {
+	for _, elt := range []struct {
+		name, hn, hv string
+	}{
+		{"custom", "X-Something-Custom", "hi there"},
+		{"X-Forwarded-Server", "X-Forwarded-Server", "something-made-up.example.com"},
+	} {
+		test := elt
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			testmux := http.NewServeMux()
+			testmux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				for k := range r.Header {
+					slog.Info("", "header", k)
+				}
+				assert.Equal(t, test.hv, r.Header.Get(test.hn))
+			})
+			ts := httptest.NewServer(testmux)
+			defer ts.Close()
+
+			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestPrefixServing",
+				"-upstreamHeader", fmt.Sprintf("%v: %v", test.hn, test.hv),
+				ts.URL,
+			})
+			require.NoError(t, err)
+			mux := s.mux(http.DefaultTransport)
+			proxy := httptest.NewServer(mux)
+			pc := proxy.Client()
+			req, err := http.NewRequest("GET", proxy.URL, nil)
+			require.NoError(t, err)
+			res, err := pc.Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+		})
+	}
 }
