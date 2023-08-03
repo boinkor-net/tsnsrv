@@ -7,14 +7,15 @@ name: Docker
 
 on:
   schedule:
-    - cron: '32 19 * * *'
+    - cron: "32 19 * * *"
   push:
-    branches: [ "main" ]
+    branches: ["main"]
     # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
+    tags: ["v*.*.*"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
+  workflow_call:
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -22,10 +23,8 @@ env:
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
 
-
 jobs:
-  build:
-
+  docker_build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
