@@ -1,0 +1,16 @@
+name: Baseline CI for go
+
+on:
+  workflow_call:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+      - run: "cat main.go"
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: "v1.53.3"
