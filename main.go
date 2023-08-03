@@ -46,10 +46,12 @@ func (h *headers) String() string {
 	return strings.Join(coll, ", ")
 }
 
+var errHeaderFormat = errors.New("header format must be 'Header-Name: value'")
+
 func (h *headers) Set(value string) error {
 	name, val, ok := strings.Cut(value, ": ")
 	if !ok {
-		return fmt.Errorf("Invalid header format %#v, must be 'Header-Name: value'", value)
+		return fmt.Errorf("%w: Invalid header format %#v", errHeaderFormat, value)
 	}
 	if *h == nil {
 		*h = headers{}
@@ -124,23 +126,29 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	return valid, root, nil
 }
 
+var errNameRequired = errors.New("tsnsrv needs a -name")
+var errNoPlaintextOnFunnel = errors.New("can not serve plaintext on a funnel service")
+var errOnlyOneAddrType = errors.New("can only proxy to one address at a time, pass either -upstreamUnixAddr or -upstreamTCPAddr")
+var errFunnelRequired = errors.New("-funnel is required if -funnelOnly is set")
+var errNoDestURL = errors.New("tsnsrv requires a destination URL")
+
 func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	var errs []error
 	if s.Name == "" {
-		errs = append(errs, errors.New("tsnsrv needs a -name."))
+		errs = append(errs, errNameRequired)
 	}
 	if s.ServePlaintext && s.Funnel {
-		errs = append(errs, errors.New("can not serve plaintext on a funnel service."))
+		errs = append(errs, errNoPlaintextOnFunnel)
 	}
 	if s.UpstreamTCPAddr != "" && s.UpstreamUnixAddr != "" {
-		errs = append(errs, errors.New("can only proxy to one address at a time, pass either -upstreamUnixAddr or -upstreamTCPAddr"))
+		errs = append(errs, errOnlyOneAddrType)
 	}
 	if !s.Funnel && s.FunnelOnly {
-		errs = append(errs, errors.New("-funnel is required if -funnelOnly is set."))
+		errs = append(errs, errFunnelRequired)
 	}
 
 	if len(args) != 1 {
-		errs = append(errs, errors.New("tsnsrv requires a destination URL."))
+		errs = append(errs, errNoDestURL)
 	}
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
@@ -240,15 +248,16 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 }
 
 func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
-	if s.Funnel {
+	switch {
+	case s.Funnel:
 		opts := []tsnet.FunnelOption{}
 		if s.FunnelOnly {
 			opts = append(opts, tsnet.FunnelOnly())
 		}
 		return srv.ListenFunnel("tcp", s.ListenAddr, opts...)
-	} else if !s.ServePlaintext {
+	case !s.ServePlaintext:
 		return srv.ListenTLS("tcp", s.ListenAddr)
-	} else {
+	default:
 		return srv.Listen("tcp", s.ListenAddr)
 	}
 }
