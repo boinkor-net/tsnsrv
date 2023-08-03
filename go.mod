@@ -3,7 +3,7 @@ module github.com/antifuchs/tsnsrv
 go 1.18
 
 require (
-	github.com/peterbourgon/ff/v3 v3.3.0
+	github.com/peterbourgon/ff/v3 v3.4.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
