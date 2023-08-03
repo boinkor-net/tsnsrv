@@ -1,8 +1,22 @@
-version: 2
-updates:
-  - directory: "/"
-    open-pull-requests-limit: 10
-    package-ecosystem: gomod
-    schedule:
-      interval: daily
-      time: "04:00"
+"updates":
+- "directory": "/"
+  "groups":
+    "github-actions":
+      "patterns":
+      - "*"
+  "open-pull-requests-limit": 10
+  "package-ecosystem": "github-actions"
+  "schedule":
+    "interval": "daily"
+    "time": "04:00"
+- "directory": "/"
+  "groups":
+    "gomod":
+      "patterns":
+      - "*"
+  "open-pull-requests-limit": 10
+  "package-ecosystem": "gomod"
+  "schedule":
+    "interval": "daily"
+    "time": "04:00"
+"version": 2
