@@ -23,14 +23,13 @@
       "actions": "read"
     "runs-on": "ubuntu-latest"
     "steps":
-    - "id": "check"
-      "uses": "martialonline/workflow-status@v4"
-    - "if": "steps.check.outputs.status != 'success'"
-      "name": "non-success detected"
-      "run": "false"
-    - "if": "steps.check.outputs.status == 'success'"
-      "name": "success"
-      "run": "true"
+    - "env":
+        "NEEDS_JSON": "${{toJSON(needs)}}"
+      "name": "Transform outcomes"
+      "run": |
+        echo "ALL_SUCCESS=$(echo "$NEEDS_JSON" | jq '. | to_entries | map(.value.result == "success") | all')" >>$GITHUB_ENV
+    - "name": "check"
+      "run": "[ $ALL_SUCCESS == true ]"
   "tests":
     "secrets": "inherit"
     "uses": "./.github/workflows/tests.yml"
