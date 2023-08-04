@@ -42,7 +42,6 @@
   "push":
     "branches":
     - "main"
-    - "staging"
 "permissions":
   "contents": "read"
   "id-token": "write"
