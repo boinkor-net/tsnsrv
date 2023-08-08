@@ -2,19 +2,23 @@
 # readable, but please don't edit it.
 
 "jobs":
-  "any_ci":
+  "can_enqueue":
+    "if": "always() && github.event_name != 'merge_group'"
+    "needs":
+    - "ci_go"
+    "permissions":
+      "actions": "read"
     "runs-on": "ubuntu-latest"
     "steps":
-    - "name": "Immediate success for improved visibility on github merge queue"
-      "run": "true"
-  "ci_go":
-    "secrets": "inherit"
-    "uses": "./.github/workflows/ci_go.yml"
-  "docker-publish":
-    "secrets": "inherit"
-    "uses": "./.github/workflows/docker-publish.yml"
-  "overall_ci":
-    "if": "always()"
+    - "env":
+        "NEEDS_JSON": "${{toJSON(needs)}}"
+      "name": "Transform outcomes"
+      "run": |
+        echo "ALL_SUCCESS=$(echo "$NEEDS_JSON" | jq '. | to_entries | map([.value.result == "success", .value.result == "skipped"] | any) | all')" >>$GITHUB_ENV
+    - "name": "check"
+      "run": "[ $ALL_SUCCESS == true ]"
+  "can_merge":
+    "if": "always() && github.event_name == 'merge_group'"
     "needs":
     - "ci_go"
     - "docker-publish"
@@ -26,9 +30,20 @@
         "NEEDS_JSON": "${{toJSON(needs)}}"
       "name": "Transform outcomes"
       "run": |
-        echo "ALL_SUCCESS=$(echo "$NEEDS_JSON" | jq '. | to_entries | map(.value.result == "success") | all')" >>$GITHUB_ENV
+        echo "ALL_SUCCESS=$(echo "$NEEDS_JSON" | jq '. | to_entries | map([.value.result == "success", .value.result == "skipped"] | any) | all')" >>$GITHUB_ENV
     - "name": "check"
       "run": "[ $ALL_SUCCESS == true ]"
+  "can_see_status":
+    "runs-on": "ubuntu-latest"
+    "steps":
+    - "name": "Immediate success for improved visibility on github merge queue"
+      "run": "true"
+  "ci_go":
+    "secrets": "inherit"
+    "uses": "./.github/workflows/ci_go.yml"
+  "docker-publish":
+    "secrets": "inherit"
+    "uses": "./.github/workflows/docker-publish.yml"
 "name": "CI"
 "on":
   "merge_group": {}
