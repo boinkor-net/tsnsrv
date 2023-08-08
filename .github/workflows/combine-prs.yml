@@ -18,7 +18,7 @@ jobs:
           private_key: ${{ secrets.COMBINE_PRS_PRIVATE_KEY }} # The private key of the GitHub App
 
       - name: combine-prs
-        uses: github/combine-prs@v3.1.1
+        uses: github/combine-prs@v3.1.2
         with:
           github_token: ${{ steps.generate_token.outputs.BOT_TOKEN }}
           labels: combined-prs
