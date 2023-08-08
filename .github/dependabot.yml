@@ -2,6 +2,7 @@
 - "directory": "/"
   "groups":
     "github-actions":
+      "exclude-patterns": []
       "patterns":
       - "*"
   "open-pull-requests-limit": 10
@@ -12,6 +13,7 @@
 - "directory": "/"
   "groups":
     "gomod":
+      "exclude-patterns": []
       "patterns":
       - "*"
   "open-pull-requests-limit": 10
