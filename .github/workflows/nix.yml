@@ -27,11 +27,9 @@ jobs:
       - name: Generate token
         id: issue_update
         uses: tibdex/github-app-token@v1
-        env:
-          OPENSSL_CONF: /dev/null # https://github.com/tibdex/github-app-token/issues/54#issuecomment-1470810318
         with:
-          app_id: ${{ vars.ISSUE_UPDATE_APP_ID }}
-          private_key: $${{ secrets.ISSUE_UPDATE_APP_PRIVATE_KEY }}
+          app_id: ${{ vars.PR_FIXUP_APP_ID }}
+          private_key: $${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v3.5.3
       - name: Cache install Nix packages
         uses: mtoohey31/cache-flake-attrs@v2
