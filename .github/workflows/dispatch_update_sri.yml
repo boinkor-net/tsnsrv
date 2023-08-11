@@ -20,7 +20,7 @@ jobs:
       - name: re-generate SRI
         run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#regenSRI"
       - name: Commit & Push updated SRI
-        uses: actions-js/push@master
+        uses: actions-js/push@v1.4
         with:
           message: "chore: Update SRI hashes"
           branch: ${{github.ref_name}}
