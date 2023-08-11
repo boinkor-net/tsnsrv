@@ -32,8 +32,4 @@ jobs:
           flake_paths: ".#regenSRI"
       - name: re-generate SRI
         run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#regenSRI"
-      - name: check if they differ
-        run: git diff-index --quiet HEAD --
-      - name: diff & status
-        if: always()
-        run: git status ; git diff
+      - run: git diff --exit-code
