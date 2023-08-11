@@ -1,0 +1,41 @@
+name: "CI/nix"
+on:
+  workflow_call:
+
+jobs:
+  flake_build:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.5.3
+      - uses: cachix/install-nix-action@v22
+      - run: nix build --no-link path:.#
+
+  flake_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.5.3
+      - uses: cachix/install-nix-action@v22
+      - run: nix flake check path:.
+
+  # less expensive than running a full flake package build, but
+  # validates the thing we care about:
+  sri_check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3.5.3
+      - name: Cached install of nardump
+        uses: rikhuijzer/cache-install@v1.1.1
+        with:
+          key: nix-${{ hashFiles('mypackages.nix') }}
+          nix_file: "nix/dev-packages/nardump.nix"
+      - name: re-vendor module
+        run: go mod vendor -o vendor
+      - name: regenerate SRI hash
+        run: nardump -sri vendor > tsnsrv.sri
+      - name: check if they differ
+        run: git diff-index --quiet HEAD --
+      - name: diff & status
+        if: always()
+        run: git status ; git diff
