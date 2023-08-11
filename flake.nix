@@ -53,8 +53,22 @@
         };
 
         apps = {
-          tsnsrv.program = config.packages.tsnsrv;
           default = config.apps.tsnsrv;
+          tsnsrv.program = config.packages.tsnsrv;
+
+          # development tools:
+          regenSRI.program = pkgs.writeShellApplication {
+            name = "regenSRI";
+            text = ''
+              set -eu -o pipefail
+
+              src="$(pwd)"
+              temp="$(mktemp -d)"
+              trap 'rm -rf "$temp"' EXIT
+              go mod vendor -o "$temp"
+              ${config.packages.nardump}/bin/nardump -sri "$temp" >"$src/tsnsrv.sri"
+            '';
+          };
         };
         formatter = pkgs.alejandra;
 
@@ -64,15 +78,7 @@
               name = "regenSRI";
               category = "dev";
               help = "Regenerate tsnsrv.sri in case the module SRI hash should change";
-              command = ''
-                set -eu -o pipefail
-
-                src="$(pwd)"
-                temp="$(mktemp -d)"
-                trap "rm -rf $temp" EXIT
-                go mod vendor -o "$temp"
-                ${config.packages.nardump}/bin/nardump -sri $temp >"$src/tsnsrv.sri"
-              '';
+              command = "${config.apps.regenSRI.program}";
             }
           ];
           packages = [
