@@ -188,7 +188,7 @@
               ProtectClock = true;
               ProtectControlGroups = true;
               ProtectHome = true;
-              ProtectProc = true;
+              ProtectProc = "noaccess";
               ProtectKernelModules = true;
               ProtectHostname = true;
               ProtectKernelLogs = true;
