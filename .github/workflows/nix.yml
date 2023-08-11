@@ -25,15 +25,13 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v3.5.3
-      - name: Cached install of nardump
-        uses: rikhuijzer/cache-install@v1.1.1
+      - name: Cache install Nix packages
+        uses: mtoohey31/cache-flake-attrs@v2
         with:
-          key: nix-${{ hashFiles('mypackages.nix') }}
-          nix_file: "nix/dev-packages/nardump.nix"
-      - name: re-vendor module
-        run: go mod vendor -o vendor
-      - name: regenerate SRI hash
-        run: nardump -sri vendor > tsnsrv.sri
+          key: ${{ runner.os }}-nix-${{ hashFiles('./flake.nix') }}
+          flake_paths: ".#apps.regenSRI"
+      - name: re-generate SRI
+        run: regenSRI
       - name: check if they differ
         run: git diff-index --quiet HEAD --
       - name: diff & status
