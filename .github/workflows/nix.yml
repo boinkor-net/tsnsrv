@@ -23,10 +23,15 @@ jobs:
   sri_check:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
+      - name: Generate token
+        id: issue_update
+        uses: tibdex/github-app-token@v1
+        env:
+          OPENSSL_CONF: /dev/null # https://github.com/tibdex/github-app-token/issues/54#issuecomment-1470810318
+        with:
+          app_id: ${{ vars.ISSUE_UPDATE_APP_ID }}
+          private_key: $${{ secrets.ISSUE_UPDATE_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v3.5.3
       - name: Cache install Nix packages
         uses: mtoohey31/cache-flake-attrs@v2
@@ -56,4 +61,4 @@ jobs:
             To update the SRI hash easily, a repo admin can run the [`Update SRI hash` action](https://github.com/boinkor-net/tsnsrv/actions/workflows/dispatch_update_sri.yml) on this branch, or you can invoke `regenSRI` on the nix dev shell and commit & push.
           comment_tag: execution
           mode: "${{ steps.up_to_date.outcome == 'failure' && 'upsert' || 'delete' }}"
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.issue_update.outputs.token }}
