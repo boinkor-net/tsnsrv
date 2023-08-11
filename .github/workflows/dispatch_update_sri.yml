@@ -23,5 +23,5 @@ jobs:
         uses: actions-js/push@master
         with:
           message: "chore: Update SRI hashes"
-          branch: ${{env.GITHUB_REF}}
+          branch: ${{github.ref_name}}
           github_token: ${{ secrets.GITHUB_TOKEN }}
