@@ -29,7 +29,7 @@ jobs:
         uses: tibdex/github-app-token@v1
         with:
           app_id: ${{ vars.PR_FIXUP_APP_ID }}
-          private_key: $${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
+          private_key: ${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v3.5.3
       - name: Cache install Nix packages
         uses: mtoohey31/cache-flake-attrs@v2
