@@ -27,6 +27,7 @@
         };
 
         packages = {
+          default = config.packages.tsnsrv;
           tsnsrv = pkgs.buildGoModule {
             pname = "tsnsrv";
             version = "0.0.0";
@@ -36,25 +37,38 @@
           };
 
           # To provide a smoother dev experience:
-          nardump = pkgs.buildGoModule rec {
-            pname = "nardump";
-            version = "1.38.4";
-            src = pkgs.fetchFromGitHub {
-              owner = "tailscale";
-              repo = "tailscale";
-              rev = "v${version}";
-              sha256 = "sha256-HjN8VzysxQvx5spXgbgbItH3y1bLbfHO+udNQMuyhAk=";
-            };
-            vendorSha256 = "sha256-LIvaxSo+4LuHUk8DIZ27IaRQwaDnjW6Jwm5AEc/V95A=";
+          regenSRI = let
+            nardump = pkgs.buildGoModule rec {
+              pname = "nardump";
+              version = "1.38.4";
+              src = pkgs.fetchFromGitHub {
+                owner = "tailscale";
+                repo = "tailscale";
+                rev = "v${version}";
+                sha256 = "sha256-HjN8VzysxQvx5spXgbgbItH3y1bLbfHO+udNQMuyhAk=";
+              };
+              vendorSha256 = "sha256-LIvaxSo+4LuHUk8DIZ27IaRQwaDnjW6Jwm5AEc/V95A=";
 
-            subPackages = ["cmd/nardump"];
-          };
-          default = config.packages.tsnsrv;
+              subPackages = ["cmd/nardump"];
+            };
+          in
+            pkgs.writeShellApplication {
+              name = "regenSRI";
+              text = ''
+                set -eu -o pipefail
+
+                src="$(pwd)"
+                temp="$(mktemp -d)"
+                trap 'rm -rf "$temp"' EXIT
+                go mod vendor -o "$temp"
+                ${nardump}/bin/nardump -sri "$temp" >"$src/tsnsrv.sri"
+              '';
+            };
         };
 
         apps = {
-          tsnsrv.program = config.packages.tsnsrv;
           default = config.apps.tsnsrv;
+          tsnsrv.program = config.packages.tsnsrv;
         };
         formatter = pkgs.alejandra;
 
@@ -64,15 +78,7 @@
               name = "regenSRI";
               category = "dev";
               help = "Regenerate tsnsrv.sri in case the module SRI hash should change";
-              command = ''
-                set -eu -o pipefail
-
-                src="$(pwd)"
-                temp="$(mktemp -d)"
-                trap "rm -rf $temp" EXIT
-                go mod vendor -o "$temp"
-                ${config.packages.nardump}/bin/nardump -sri $temp >"$src/tsnsrv.sri"
-              '';
+              command = "${config.packages.regenSRI}/bin/regenSRI";
             }
           ];
           packages = [

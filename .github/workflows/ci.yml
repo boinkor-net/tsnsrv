@@ -6,6 +6,7 @@
     "if": "always() && github.event_name != 'merge_group'"
     "needs":
     - "ci_go"
+    - "nix"
     "permissions":
       "actions": "read"
     "runs-on": "ubuntu-latest"
@@ -22,6 +23,7 @@
     "needs":
     - "ci_go"
     - "docker-publish"
+    - "nix"
     "permissions":
       "actions": "read"
     "runs-on": "ubuntu-latest"
@@ -44,6 +46,9 @@
   "docker-publish":
     "secrets": "inherit"
     "uses": "./.github/workflows/docker-publish.yml"
+  "nix":
+    "secrets": "inherit"
+    "uses": "./.github/workflows/nix.yml"
 "name": "CI"
 "on":
   "merge_group": {}
@@ -57,3 +62,4 @@
   "contents": "read"
   "id-token": "write"
   "packages": "write"
+  "pull-requests": "write"

@@ -1,0 +1,59 @@
+name: "CI/nix"
+on:
+  workflow_call:
+
+jobs:
+  flake_build:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.5.3
+      - uses: cachix/install-nix-action@v22
+      - run: nix build --no-link path:.#
+
+  flake_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.5.3
+      - uses: cachix/install-nix-action@v22
+      - run: nix flake check path:.
+
+  # less expensive than running a full flake package build, but
+  # validates the thing we care about:
+  sri_check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v3.5.3
+      - name: Cache install Nix packages
+        uses: mtoohey31/cache-flake-attrs@v2
+        with:
+          key: ${{ runner.os }}-nix-${{ hashFiles('./flake.nix') }}
+          flake_paths: ".#regenSRI"
+      - name: re-generate SRI
+        run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#regenSRI"
+      - run: git diff --exit-code
+        id: up_to_date
+      - run: '(echo "diff<<EOF" ; git diff ; echo EOF) >> $GITHUB_OUTPUT'
+        if: always() && steps.up_to_date.outcome == 'failure'
+        id: diff
+      - name: Leave a PR comment
+        uses: thollander/actions-comment-pull-request@v2
+        if: always()
+        with:
+          message: |
+            # SRI tag needs updating
+
+            It looks like the generated SRI hash on the go modules in this repo is outdated. This usually happens when the go module structure / version changes, and will break the build of nix packages. Here's the diff:
+
+            ```diff
+            ${{steps.diff.outputs.diff}}
+            ```
+
+            To update the SRI hash easily, a repo admin can run the [`Update SRI hash` action](https://github.com/boinkor-net/tsnsrv/actions/workflows/dispatch_update_sri.yml) on this branch, or you can invoke `regenSRI` on the nix dev shell and commit & push.
+          comment_tag: execution
+          mode: "${{ steps.up_to_date.outcome == 'failure' && 'upsert' || 'delete' }}"
+          GITHUB_TOKEN: ${{ github.token }}
