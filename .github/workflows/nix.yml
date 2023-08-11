@@ -29,7 +29,7 @@ jobs:
         uses: mtoohey31/cache-flake-attrs@v2
         with:
           key: ${{ runner.os }}-nix-${{ hashFiles('./flake.nix') }}
-          flake_paths: ".#apps.regenSRI"
+          flake_paths: ".#regenSRI"
       - name: re-generate SRI
         run: regenSRI
       - name: check if they differ
