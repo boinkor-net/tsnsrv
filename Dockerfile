@@ -4,7 +4,11 @@ WORKDIR /work
 ENV CGO_ENABLED=0
 
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
+RUN go mod download && \
+    go mod verify && \
+    echo 'package main\nimport (_ "tailscale.com/tsnet")\nfunc main(){}' > main.go && \
+    go build -v ./ && \
+    rm main.go
 
 COPY . .
 
