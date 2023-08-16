@@ -68,3 +68,4 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-to: type=gha,mode=max
+          cache-from: type=gha
