@@ -79,6 +79,7 @@ type TailnetSrv struct {
 	PrometheusAddr                    string
 	UpstreamHeaders                   headers
 	SuppressTailnetDialer             bool
+	ReadHeaderTimeout                 time.Duration
 }
 
 type validTailnetSrv struct {
@@ -110,6 +111,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.StringVar(&s.PrometheusAddr, "prometheusAddr", ":9099", "Serve prometheus metrics from this address. Empty string to disable.")
 	fs.Var(&s.UpstreamHeaders, "upstreamHeader", "Additional headers (separated by ': ') on requests to upstream.")
 	fs.BoolVar(&s.SuppressTailnetDialer, "suppressTailnetDialer", false, "Whether to use the stdlib net.Dialer instead of a tailnet-enabled one")
+	fs.DurationVar(&s.ReadHeaderTimeout, "readHeaderTimeout", 0, "Amount of time to allow for reading HTTP request headers. 0 will disable the timeuot but expose the service to the slowloris attack.")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
@@ -253,7 +255,7 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 	)
 	server := http.Server{
 		Handler:           mux,
-		ReadHeaderTimeout: 1 * time.Second,
+		ReadHeaderTimeout: s.ReadHeaderTimeout,
 	}
 	return fmt.Errorf("while serving: %w", server.Serve(l))
 }

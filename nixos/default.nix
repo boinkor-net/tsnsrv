@@ -113,6 +113,12 @@
             default = false;
           };
 
+          readHeaderTimeout = mkOption {
+            description = "";
+            type = types.nullOr types.str;
+            default = null;
+          };
+
           toURL = mkOption {
             description = "URL to forward HTTP requests to";
             type = types.str;
@@ -139,7 +145,15 @@
           {
             wantedBy = ["multi-user.target"];
             after = ["network-online.target"];
-            script = ''
+            script = let
+              readHeaderTimeout =
+                if value.readHeaderTimeout == null
+                then
+                  if value.funnel
+                  then "1s"
+                  else "0s"
+                else value.readHeaderTimeout;
+            in ''
               exec ${value.package}/bin/tsnsrv -name ${lib.escapeShellArg name} \
                      -ephemeral=${lib.boolToString value.ephemeral} \
                      -funnel=${lib.boolToString value.funnel} \
@@ -151,6 +165,7 @@
                      -insecureHTTPS=${lib.boolToString value.insecureHTTPS} \
                      -suppressWhois=${lib.boolToString value.suppressWhois} \
                      -suppressTailnetDialer=${lib.boolToString value.suppressTailnetDialer} \
+                     -readHeaderTimeout=${lib.escapeShellArg readHeaderTimeout} \
                      ${
                 if value.whoisTimeout != null
                 then "-whoisTimeout=${lib.escapeShellArg value.whoisTimeout}"
