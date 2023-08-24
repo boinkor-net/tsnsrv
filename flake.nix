@@ -28,7 +28,7 @@
 
         packages = {
           default = config.packages.tsnsrv;
-          tsnsrv = pkgs.buildGoModule {
+          tsnsrv = pkgs.buildGo121Module {
             pname = "tsnsrv";
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
