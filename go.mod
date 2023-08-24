@@ -1,6 +1,6 @@
 module github.com/antifuchs/tsnsrv
 
-go 1.20
+go 1.21
 
 require (
 	github.com/peterbourgon/ff/v3 v3.4.0
