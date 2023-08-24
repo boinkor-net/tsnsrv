@@ -161,8 +161,12 @@ func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.Who
 	if who.UserProfile.ProfilePicURL != "" {
 		h.Set("X-Tailscale-User-ProfilePicURL", who.UserProfile.ProfilePicURL)
 	}
-	if len(who.Caps) > 0 {
-		h.Set("X-Tailscale-Caps", strings.Join(who.Caps, ", "))
+	if len(who.CapMap) > 0 {
+		var caps []string
+		for cap := range who.CapMap {
+			caps = append(caps, string(cap))
+		}
+		h.Set("X-Tailscale-Caps", strings.Join(caps, ", "))
 	}
 
 	h.Set("X-Tailscale-Node", who.Node.ID.String())
