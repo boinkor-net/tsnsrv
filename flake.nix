@@ -82,8 +82,10 @@
             }
           ];
           packages = [
-            pkgs.go
+            pkgs.go_1_21
             pkgs.gopls
+            (pkgs.golangci-lint.override
+              {buildGoModule = args: (pkgs.buildGo121Module args);})
           ];
         };
       };
