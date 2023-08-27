@@ -1,0 +1,24 @@
+name: "CI/Nix"
+on:
+  workflow_call:
+
+jobs:
+  nix_lints:
+    uses: "boinkor-net/ci-baseline-nix/.github/workflows/lints.yml@main"
+    with:
+      root: "."
+
+  nix_build:
+    uses: "boinkor-net/ci-baseline-nix/.github/workflows/tests.yml@main"
+    with:
+      root: "."
+
+  build:
+    uses: "boinkor-net/ci-baseline-nix/.github/workflows/build.yml@main"
+    strategy:
+      matrix:
+        derivation: [""]
+    with:
+      root: "."
+      installable: ${{matrix.derivation}}
+
