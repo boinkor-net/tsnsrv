@@ -1,4 +1,4 @@
-name: "CI/Rust"
+name: "CI/Go"
 on:
   workflow_call:
 
