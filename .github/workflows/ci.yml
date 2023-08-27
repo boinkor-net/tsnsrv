@@ -6,7 +6,7 @@
     "if": "always() && github.event_name != 'merge_group'"
     "needs":
     - "ci_go"
-    - "nix"
+    - "ci_nix"
     "permissions":
       "actions": "read"
     "runs-on": "ubuntu-latest"
@@ -22,8 +22,8 @@
     "if": "always() && github.event_name == 'merge_group'"
     "needs":
     - "ci_go"
+    - "ci_nix"
     - "docker-publish"
-    - "nix"
     "permissions":
       "actions": "read"
     "runs-on": "ubuntu-latest"
@@ -43,12 +43,12 @@
   "ci_go":
     "secrets": "inherit"
     "uses": "./.github/workflows/ci_go.yml"
+  "ci_nix":
+    "secrets": "inherit"
+    "uses": "./.github/workflows/ci_nix.yml"
   "docker-publish":
     "secrets": "inherit"
     "uses": "./.github/workflows/docker-publish.yml"
-  "nix":
-    "secrets": "inherit"
-    "uses": "./.github/workflows/nix.yml"
 "name": "CI"
 "on":
   "merge_group": {}
