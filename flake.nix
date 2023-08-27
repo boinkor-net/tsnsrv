@@ -28,7 +28,7 @@
 
         packages = {
           default = config.packages.tsnsrv;
-          tsnsrv = pkgs.buildGoModule {
+          tsnsrv = pkgs.buildGo121Module {
             pname = "tsnsrv";
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
@@ -82,8 +82,10 @@
             }
           ];
           packages = [
-            pkgs.go
+            pkgs.go_1_21
             pkgs.gopls
+            (pkgs.golangci-lint.override
+              {buildGoModule = args: (pkgs.buildGo121Module args);})
           ];
         };
       };
