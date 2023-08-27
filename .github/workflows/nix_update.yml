@@ -1,0 +1,40 @@
+name: "nix-update"
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "32 19 * * 0"
+
+jobs:
+  flake_update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v3.6.0
+      - uses: cachix/install-nix-action@v22
+      - uses: fregante/setup-git-user@v2
+      - run: nix flake update --commit-lock-file
+      - run: nix flake check .
+      - run: nix build --no-link .#
+
+      - name: Generate token
+        id: generate_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ vars.PR_FIXUP_APP_ID }}
+          installation_id: ${{ vars.PR_FIXUP_INSTALLATION_ID }}
+          permissions: >-
+            {"contents": "write", "pull_requests": "write"}
+          private_key: ${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{steps.generate_token.outputs.token}}
+          commit-message: "Update flake.lock"
+          assignees: antifuchs
+          delete-branch: true
+          branch: flake-update
+          base: main
+          title: "Update flake.lock"
