@@ -27,10 +27,18 @@
           tag = "latest";
           created = builtins.substring 0 8 self.lastModifiedDate;
           contents = [
-            config.packages.tsnsrv
+            (pkgs.buildEnv {
+              name = "image-root";
+              paths = [config.packages.tsnsrv];
+              pathsToLink = ["/bin"];
+            })
             pkgs.dockerTools.caCertificates
           ];
-          config.EntryPoint = ["${config.packages.tsnsrv}/bin/tsnsrv"];
+
+          extraCommands = ''
+            mkdir -p /tmp
+          '';
+          config.EntryPoint = ["/bin/tsnsrv"];
         };
       in {
         overlayAttrs = {
