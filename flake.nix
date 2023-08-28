@@ -34,7 +34,7 @@
             pkgs.dockerTools.caCertificates
           ];
 
-          extraCommands = "mkdir -p /tmp";
+          extraCommands = "mkdir -p /tmp; touch /tmp/.ignore";
           config.EntryPoint = ["/bin/tsnsrv"];
         };
       in {
