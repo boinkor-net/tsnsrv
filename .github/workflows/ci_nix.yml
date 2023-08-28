@@ -8,7 +8,7 @@ jobs:
     with:
       root: "."
 
-  nix_build:
+  nix_test:
     uses: "boinkor-net/ci-baseline-nix/.github/workflows/tests.yml@main"
     with:
       root: "."
