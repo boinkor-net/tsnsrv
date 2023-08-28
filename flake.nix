@@ -29,12 +29,11 @@
             (pkgs.buildEnv {
               name = "image-root";
               paths = [config.packages.tsnsrv];
-              pathsToLink = ["/bin"];
+              pathsToLink = ["/bin" "/tmp"];
             })
             pkgs.dockerTools.caCertificates
           ];
 
-          extraCommands = "mkdir -p /tmp";
           config.EntryPoint = ["/bin/tsnsrv"];
         };
       in {
