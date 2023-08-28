@@ -21,9 +21,20 @@
         pkgs,
         final,
         ...
-      }: {
+      }: let
+        imageArgs = {
+          name = "tsnsrv";
+          tag = "latest";
+          created = builtins.substring 0 8 self.lastModifiedDate;
+          contents = [
+            config.packages.tsnsrv
+            pkgs.dockerTools.caCertificates
+          ];
+          config.EntryPoint = ["${config.packages.tsnsrv}/bin/tsnsrv"];
+        };
+      in {
         overlayAttrs = {
-          inherit (config.packages) tsnsrv;
+          inherit (config.packages) tsnsrv tsnsrvOciImage;
         };
 
         packages = {
@@ -35,6 +46,8 @@
             src = with pkgs; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
             meta.mainProgram = "tsnsrv";
           };
+
+          tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage imageArgs;
 
           # To provide a smoother dev experience:
           regenSRI = let
@@ -69,6 +82,7 @@
         apps = {
           default = config.apps.tsnsrv;
           tsnsrv.program = config.packages.tsnsrv;
+          streamTsnsrvOciImage.program = "${pkgs.dockerTools.streamLayeredImage imageArgs}";
         };
         formatter = pkgs.alejandra;
 
