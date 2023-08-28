@@ -34,7 +34,7 @@
             pkgs.dockerTools.caCertificates
           ];
 
-          extraCommands = "mkdir -p /tmp; touch /tmp/.ignore; mkdir /data";
+          fakeRootCommands = "mkdir -p /tmp; touch /tmp/.ignore; mkdir /data";
           config.EntryPoint = ["/bin/tsnsrv"];
         };
       in {
