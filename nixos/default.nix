@@ -153,36 +153,26 @@
                   then "1s"
                   else "0s"
                 else value.readHeaderTimeout;
+              args =
+                [
+                  "-name=${name}"
+                  "-ephemeral=${lib.boolToString value.ephemeral}"
+                  "-funnel=${lib.boolToString value.funnel}"
+                  "-plaintext=${lib.boolToString value.plaintext}"
+                  "-listenAddr=${value.listenAddr}"
+                  "-stripPrefix=${lib.boolToString value.stripPrefix}"
+                  "-authkeyPath=${value.authKeyPath}"
+                  "-insecureHTTPS=${lib.boolToString value.insecureHTTPS}"
+                  "-suppressTailnetDialer=${lib.boolToString value.suppressTailnetDialer}"
+                  "-readHeaderTimeout=${readHeaderTimeout}"
+                ]
+                ++ (lib.optionals (value.whoisTimeout != null) ["-whoisTimeout" value.whoisTimeout])
+                ++ (lib.optionals (value.upstreamUnixAddr != null) ["-upstreamUnixAddr" value.upstreamUnixAddr])
+                ++ (map (p: "-prefix=${p}") value.prefixes)
+                ++ (map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: value: "${name}: ${value}") value.upstreamHeaders))
+                ++ [value.toURL];
             in ''
-              exec ${value.package}/bin/tsnsrv -name ${lib.escapeShellArg name} \
-                     -ephemeral=${lib.boolToString value.ephemeral} \
-                     -funnel=${lib.boolToString value.funnel} \
-                     -plaintext=${lib.boolToString value.plaintext} \
-                     -listenAddr=${lib.escapeShellArg value.listenAddr} \
-                     -stripPrefix=${lib.boolToString value.stripPrefix} \
-                     -stateDir="$STATE_DIRECTORY/tsnet-tsnsrv" \
-                     -authkeyPath=${lib.escapeShellArg value.authKeyPath} \
-                     -insecureHTTPS=${lib.boolToString value.insecureHTTPS} \
-                     -suppressWhois=${lib.boolToString value.suppressWhois} \
-                     -suppressTailnetDialer=${lib.boolToString value.suppressTailnetDialer} \
-                     -readHeaderTimeout=${lib.escapeShellArg readHeaderTimeout} \
-                     ${
-                if value.whoisTimeout != null
-                then "-whoisTimeout=${lib.escapeShellArg value.whoisTimeout}"
-                else ""
-              } \
-                     ${
-                if value.upstreamUnixAddr != null
-                then "-upstreamUnixAddr=${lib.escapeShellArg value.upstreamUnixAddr}"
-                else ""
-              } \
-              ${
-                lib.concatMapStringsSep " \\\n" (p: "-prefix ${lib.escapeShellArg p}") value.prefixes
-              } \
-              ${
-                lib.concatMapStringsSep " \\\n" (p: "-upstreamHeader ${lib.escapeShellArg p}") (lib.mapAttrsToList (name: value: "${name}: ${value}") value.upstreamHeaders)
-              } \
-                     ${lib.escapeShellArg value.toURL}
+              exec ${value.package}/bin/tsnsrv -stateDir=$STATE_DIRECTORY/tsnet-tsnsrv ${lib.escapeShellArgs args}
             '';
             serviceConfig = {
               DynamicUser = true;
