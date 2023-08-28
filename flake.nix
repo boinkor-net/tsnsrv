@@ -25,7 +25,6 @@
         imageArgs = {
           name = "tsnsrv";
           tag = "latest";
-          created = builtins.substring 0 8 self.lastModifiedDate;
           contents = [
             (pkgs.buildEnv {
               name = "image-root";
@@ -35,9 +34,7 @@
             pkgs.dockerTools.caCertificates
           ];
 
-          extraCommands = ''
-            mkdir -p /tmp
-          '';
+          extraCommands = "mkdir -p /tmp";
           config.EntryPoint = ["/bin/tsnsrv"];
         };
       in {
