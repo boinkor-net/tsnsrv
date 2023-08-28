@@ -17,8 +17,7 @@ jobs:
     uses: "boinkor-net/ci-baseline-nix/.github/workflows/build.yml@main"
     strategy:
       matrix:
-        derivation: [""]
+        derivation: ["", "tsnsrvOciImage"]
     with:
       root: "."
       installable: ${{matrix.derivation}}
-
