@@ -178,6 +178,12 @@ in {
         description = "Attrset mapping sidecar container names to their respective tsnsrv service definition. Each sidecar container will be attached to the container it belongs to, sharing its network.";
         type = types.attrsOf (types.submodule {
           options = {
+            name = mkOption {
+              description = "Name to use for the tsnet service. This defaults to the container name.";
+              type = types.nullOr types.str;
+              default = null;
+            };
+
             forContainer = mkOption {
               description = "The container to which to attach the sidecar.";
               type = types.str; # TODO: see if we can constrain this to all the oci containers in the system definition, with types.oneOf or an appropriate check.
@@ -277,7 +283,10 @@ in {
               cmd =
                 ["-stateDir=/state"]
                 ++ (serviceArgs {
-                  inherit name;
+                  name =
+                    if sidecar.name == null
+                    then name
+                    else sidecar.name;
                   inherit (sidecar) service;
                 });
             };
