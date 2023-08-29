@@ -276,9 +276,19 @@ in {
                 # The tsnet auth key.
                 "${config.virtualisation.oci-sidecars.tsnsrv.authKeyPath}:${config.virtualisation.oci-sidecars.tsnsrv.authKeyPath}"
               ];
-              extraOptions = [
-                "--network=container:${sidecar.forContainer}"
-              ];
+              extraOptions =
+                [
+                  "--network=container:${sidecar.forContainer}"
+                ]
+                ++ (
+                  if (config.virtualisation.oci-containers.backend == "podman")
+                  then [
+                    "--passwd"
+                    "--hostuser=${config.users.users.tsnsrv-sidecar.name}"
+                    "--group-add=keep-groups"
+                  ]
+                  else []
+                );
               cmd =
                 ["-stateDir=/state"]
                 ++ (serviceArgs {
