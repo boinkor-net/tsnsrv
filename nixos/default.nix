@@ -298,13 +298,11 @@ in {
             in {
               name = serviceName;
               value = {
-                serviceConfig =
-                  {
-                    StateDirectory = serviceName;
-                    StateDirectoryMode = "0700";
-                    SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
-                  }
-                  // lockedDownserviceConfig;
+                serviceConfig = {
+                  StateDirectory = serviceName;
+                  StateDirectoryMode = "0700";
+                  SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
+                };
               };
             })
             config.virtualisation.oci-sidecars.tsnsrv.containers
