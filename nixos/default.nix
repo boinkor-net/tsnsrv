@@ -252,23 +252,6 @@ in {
       })
 
       (lib.mkIf config.virtualisation.oci-sidecars.tsnsrv.enable {
-        users.users.tsnsrv-sidecar = {
-          isSystemUser = true;
-          group = config.users.groups.tsnsrv.name;
-          subUidRanges = [
-            {
-              startUid = 200000;
-              count = 100000;
-            }
-          ];
-          subGidRanges = [
-            {
-              startGid = 200000;
-              count = 100000;
-            }
-          ];
-        };
-
         virtualisation.oci-containers.containers =
           lib.mapAttrs' (name: sidecar: {
             inherit name;
@@ -278,7 +261,7 @@ in {
               imageFile = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrvOciImage;
               image = "tsnsrv:latest";
               dependsOn = [sidecar.forContainer];
-              user = "${config.users.users.tsnsrv-sidecar.name}:${config.users.groups.tsnsrv.name}";
+              user = config.virtualisation.oci-containers.containers.${sidecar.forContainer}.user;
               volumes = [
                 # The service's state dir; we have to infer /var/lib
                 # because the backends don't support using the
@@ -312,16 +295,9 @@ in {
               value = {
                 path = ["/run/wrappers"];
                 serviceConfig = {
-                  User = config.users.users.tsnsrv-sidecar.name;
-                  Group = config.users.groups.tsnsrv.name;
                   StateDirectory = serviceName;
-                  RuntimeDirectory = serviceName;
                   StateDirectoryMode = "0700";
                   SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
-                };
-                environment = {
-                  HOME = "%S/${serviceName}";
-                  XDG_RUNTIME_DIR = "%t/${serviceName}";
                 };
               };
             })
