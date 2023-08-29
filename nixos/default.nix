@@ -164,56 +164,154 @@ in {
       type = types.attrsOf (types.submodule serviceSubmodule);
       example = false;
     };
-  };
 
-  config = lib.mkIf config.services.tsnsrv.enable {
-    users.groups.tsnsrv = {};
-    systemd.services =
-      lib.mapAttrs' (
-        name: service:
-          lib.nameValuePair
-          "tsnsrv-${name}"
-          {
-            wantedBy = ["multi-user.target"];
-            after = ["network-online.target"];
-            script = ''
-              exec ${service.package}/bin/tsnsrv -stateDir=$STATE_DIRECTORY/tsnet-tsnsrv ${lib.escapeShellArgs (serviceArgs {inherit name service;})}
-            '';
-            serviceConfig = {
-              DynamicUser = true;
-              SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
-              StateDirectory = "tsnsrv-${name}";
-              StateDirectoryMode = "0700";
+    virtualisation.oci-sidecars.tsnsrv = {
+      enable = mkEnableOption "tsnsrv oci sidecar containers";
 
-              PrivateNetwork = false; # We need access to the internet for ts
-              # Activate a bunch of strictness:
-              DeviceAllow = "";
-              LockPersonality = true;
-              MemoryDenyWriteExecute = true;
-              NoNewPrivileges = true;
-              PrivateDevices = true;
-              PrivateMounts = true;
-              PrivateTmp = true;
-              PrivateUsers = true;
-              ProtectClock = true;
-              ProtectControlGroups = true;
-              ProtectHome = true;
-              ProtectProc = "noaccess";
-              ProtectKernelModules = true;
-              ProtectHostname = true;
-              ProtectKernelLogs = true;
-              ProtectKernelTunables = true;
-              RestrictNamespaces = true;
-              AmbientCapabilities = "";
-              CapabilityBoundingSet = "";
-              ProtectSystem = "strict";
-              RemoveIPC = true;
-              RestrictRealtime = true;
-              RestrictSUIDSGID = true;
-              UMask = "0066";
+      authKeyPath = mkOption {
+        description = "Path to a file containing a tailscale auth key. Make this a secret";
+        type = types.path;
+        default = config.services.tsnsrv.defaults.authKeyPath;
+      };
+
+      containers = mkOption {
+        description = "Attrset mapping sidecar container names to their respective tsnsrv service definition. Each sidecar container will be attached to the container it belongs to, sharing its network.";
+        type = types.attrsOf (types.submodule {
+          options = {
+            forContainer = mkOption {
+              description = "The container to which to attach the sidecar.";
+              type = types.str; # TODO: see if we can constrain this to all the oci containers in the system definition, with types.oneOf or an appropriate check.
             };
-          }
-      )
-      config.services.tsnsrv.services;
+
+            service = mkOption {
+              description = "tsnsrv service definition for the sidecar.";
+              type = types.submodule serviceSubmodule;
+            };
+          };
+        });
+      };
+    };
   };
+
+  config = let
+    lockedDownserviceConfig = {
+      PrivateNetwork = false; # We need access to the internet for ts
+      # Activate a bunch of strictness:
+      DeviceAllow = "";
+      LockPersonality = true;
+      MemoryDenyWriteExecute = true;
+      NoNewPrivileges = true;
+      PrivateDevices = true;
+      PrivateMounts = true;
+      PrivateTmp = true;
+      PrivateUsers = true;
+      ProtectClock = true;
+      ProtectControlGroups = true;
+      ProtectHome = true;
+      ProtectProc = "noaccess";
+      ProtectKernelModules = true;
+      ProtectHostname = true;
+      ProtectKernelLogs = true;
+      ProtectKernelTunables = true;
+      RestrictNamespaces = true;
+      AmbientCapabilities = "";
+      CapabilityBoundingSet = "";
+      ProtectSystem = "strict";
+      RemoveIPC = true;
+      RestrictRealtime = true;
+      RestrictSUIDSGID = true;
+      UMask = "0066";
+    };
+  in
+    lib.mkMerge [
+      (lib.mkIf config.services.tsnsrv.enable {
+        users.groups.tsnsrv = {};
+        systemd.services =
+          lib.mapAttrs' (
+            name: service:
+              lib.nameValuePair
+              "tsnsrv-${name}"
+              {
+                wantedBy = ["multi-user.target"];
+                after = ["network-online.target"];
+                script = ''
+                  exec ${service.package}/bin/tsnsrv -stateDir=$STATE_DIRECTORY/tsnet-tsnsrv ${lib.escapeShellArgs (serviceArgs {inherit name service;})}
+                '';
+                serviceConfig =
+                  {
+                    DynamicUser = true;
+                    SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
+                    StateDirectory = "tsnsrv-${name}";
+                    StateDirectoryMode = "0700";
+                  }
+                  // lockedDownserviceConfig;
+              }
+          )
+          config.services.tsnsrv.services;
+      })
+
+      (lib.mkIf config.virtualisation.oci-sidecars.tsnsrv.enable {
+        virtualisation.oci-containers =
+          lib.mapAttrs' (name: sidecar: {
+            inherit name;
+            value = let
+              serviceName = "${config.virtualisation.oci-containers.backend}-${name}";
+            in {
+              imageFile = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrvOciImage;
+              image = "tsnsrv:latest";
+              dependsOn = sidecar.forContainer;
+              volumes = [
+                # The service's state dir; we have to infer /var/lib
+                # because the backends don't support using the
+                # $STATE_DIRECTORY environment variable in volume specs.
+                "/var/lib/${serviceName}:/state"
+
+                # The tsnet auth key.
+                "${config.virtualisation.oci-sidecars.tsnsrv.authKeyPath}:${config.virtualisation.oci-sidecars.tsnsrv.authKeyPath}"
+              ];
+              extraOptions = [
+                "--network=container:${sidecar.forContainer}"
+              ];
+              cmd =
+                ["-stateDir=/state"]
+                ++ (serviceArgs {
+                  inherit name;
+                  inherit (sidecar) service;
+                });
+            };
+          })
+          config.virtualisation.oci-sidecars.containers;
+
+        systemd.services =
+          (
+            # systemd unit settings for the respective podman services:
+            lib.mapAttrs' (name: sidecar: let
+              serviceName = "${config.virtualisation.oci-containers.backend}-${name}";
+              service = sidecar.service;
+            in {
+              name = serviceName;
+              value =
+                {
+                  StateDirectory = serviceName;
+                  StateDirectoryMode = "0700";
+                  DynamicUser = true;
+                  SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
+                }
+                // lockedDownserviceConfig;
+            })
+            config.virtualisation.oci-sidecars.containers
+          )
+          // (
+            # systemd unit of the container we're sidecar-ing to:
+            # Ensure that the sidecar is up when the "main" container is up.
+            lib.foldAttrs (lib.mapAttrsToList (name: sidecar: let
+                fromServiceName = "${config.virtualisation.oci-containers.backend}-${sidecar.forContainer}";
+                toServiceName = "${config.virtualisation.oci-containers.backend}-${name}";
+              in {
+                "${fromServiceName}".unitConfig.Upholds = [toServiceName];
+              })
+              config.virtualisation.oci-sidecars.containers)
+          );
+      })
+    ];
 }
