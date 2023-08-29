@@ -290,14 +290,16 @@ in {
               service = sidecar.service;
             in {
               name = serviceName;
-              value =
-                {
-                  StateDirectory = serviceName;
-                  StateDirectoryMode = "0700";
-                  DynamicUser = true;
-                  SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
-                }
-                // lockedDownserviceConfig;
+              value = {
+                serviceConfig =
+                  {
+                    StateDirectory = serviceName;
+                    StateDirectoryMode = "0700";
+                    DynamicUser = true;
+                    SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
+                  }
+                  // lockedDownserviceConfig;
+              };
             })
             config.virtualisation.oci-sidecars.tsnsrv.containers
           )
