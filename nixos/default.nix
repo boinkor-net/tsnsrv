@@ -255,6 +255,18 @@ in {
         users.users.tsnsrv-sidecar = {
           isSystemUser = true;
           group = config.users.groups.tsnsrv.name;
+          subUidRanges = [
+            {
+              startUid = 200000;
+              count = 100000;
+            }
+          ];
+          subGidRanges = [
+            {
+              startGid = 200000;
+              count = 100000;
+            }
+          ];
         };
 
         virtualisation.oci-containers.containers =
@@ -276,19 +288,9 @@ in {
                 # The tsnet auth key.
                 "${config.virtualisation.oci-sidecars.tsnsrv.authKeyPath}:${config.virtualisation.oci-sidecars.tsnsrv.authKeyPath}"
               ];
-              extraOptions =
-                [
-                  "--network=container:${sidecar.forContainer}"
-                ]
-                ++ (
-                  if (config.virtualisation.oci-containers.backend == "podman")
-                  then [
-                    "--passwd"
-                    "--hostuser=${config.users.users.tsnsrv-sidecar.name}"
-                    "--group-add=keep-groups"
-                  ]
-                  else []
-                );
+              extraOptions = [
+                "--network=container:${sidecar.forContainer}"
+              ];
               cmd =
                 ["-stateDir=/state"]
                 ++ (serviceArgs {
@@ -308,10 +310,18 @@ in {
             in {
               name = serviceName;
               value = {
+                path = ["/run/wrappers"];
                 serviceConfig = {
+                  User = config.users.users.tsnsrv-sidecar.name;
+                  Group = config.users.groups.tsnsrv.name;
                   StateDirectory = serviceName;
+                  RuntimeDirectory = serviceName;
                   StateDirectoryMode = "0700";
                   SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
+                };
+                environment = {
+                  HOME = "%S/${serviceName}";
+                  XDG_RUNTIME_DIR = "%t/${serviceName}";
                 };
               };
             })
