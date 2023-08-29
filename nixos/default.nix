@@ -251,7 +251,7 @@ in {
       })
 
       (lib.mkIf config.virtualisation.oci-sidecars.tsnsrv.enable {
-        virtualisation.oci-containers =
+        virtualisation.oci-containers.containers =
           lib.mapAttrs' (name: sidecar: {
             inherit name;
             value = let
