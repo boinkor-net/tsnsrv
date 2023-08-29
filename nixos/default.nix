@@ -280,7 +280,7 @@ in {
                 });
             };
           })
-          config.virtualisation.oci-sidecars.containers;
+          config.virtualisation.oci-sidecars.tsnsrv.containers;
 
         systemd.services =
           (
@@ -299,7 +299,7 @@ in {
                 }
                 // lockedDownserviceConfig;
             })
-            config.virtualisation.oci-sidecars.containers
+            config.virtualisation.oci-sidecars.tsnsrv.containers
           )
           // (
             # systemd unit of the container we're sidecar-ing to:
@@ -310,7 +310,7 @@ in {
               in {
                 "${fromServiceName}".unitConfig.Upholds = [toServiceName];
               })
-              config.virtualisation.oci-sidecars.containers)
+              config.virtualisation.oci-sidecars.tsnsrv.containers)
           );
       })
     ];
