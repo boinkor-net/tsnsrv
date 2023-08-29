@@ -304,11 +304,13 @@ in {
           // (
             # systemd unit of the container we're sidecar-ing to:
             # Ensure that the sidecar is up when the "main" container is up.
-            lib.foldAttrs (lib.mapAttrsToList (name: sidecar: let
+            lib.foldAttrs (item: acc: {unitConfig.Upholds = acc.unitConfig.Upholds ++ [item];})
+            {unitConfig.Upholds = [];}
+            (lib.mapAttrsToList (name: sidecar: let
                 fromServiceName = "${config.virtualisation.oci-containers.backend}-${sidecar.forContainer}";
                 toServiceName = "${config.virtualisation.oci-containers.backend}-${name}";
               in {
-                "${fromServiceName}".unitConfig.Upholds = [toServiceName];
+                "${fromServiceName}" = toServiceName;
               })
               config.virtualisation.oci-sidecars.tsnsrv.containers)
           );
