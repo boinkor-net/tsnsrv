@@ -224,8 +224,9 @@ in {
     };
   in
     lib.mkMerge [
+      (lib.mkIf (config.services.tsnsrv.enable or config.virtualisation.oci-sidecars.tsnsrv.enable)
+        {users.groups.tsnsrv = {};})
       (lib.mkIf config.services.tsnsrv.enable {
-        users.groups.tsnsrv = {};
         systemd.services =
           lib.mapAttrs' (
             name: service:
@@ -251,7 +252,10 @@ in {
       })
 
       (lib.mkIf config.virtualisation.oci-sidecars.tsnsrv.enable {
-        users.users.tsnsrv-sidecar.isSystemUser = true;
+        users.users.tsnsrv-sidecar = {
+          isSystemUser = true;
+          group = config.users.groups.tsnsrv.name;
+        };
 
         virtualisation.oci-containers.containers =
           lib.mapAttrs' (name: sidecar: {
