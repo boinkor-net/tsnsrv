@@ -266,7 +266,7 @@ in {
               imageFile = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrvOciImage;
               image = "tsnsrv:latest";
               dependsOn = [sidecar.forContainer];
-              user = config.users.users.tsnsrv-sidecar.name;
+              user = "${config.users.users.tsnsrv-sidecar.name}:${config.users.groups.tsnsrv.name}";
               volumes = [
                 # The service's state dir; we have to infer /var/lib
                 # because the backends don't support using the
