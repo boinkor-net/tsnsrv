@@ -251,6 +251,8 @@ in {
       })
 
       (lib.mkIf config.virtualisation.oci-sidecars.tsnsrv.enable {
+        users.users.tsnsrv-sidecar.isSystemUser = true;
+
         virtualisation.oci-containers.containers =
           lib.mapAttrs' (name: sidecar: {
             inherit name;
@@ -260,6 +262,7 @@ in {
               imageFile = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrvOciImage;
               image = "tsnsrv:latest";
               dependsOn = [sidecar.forContainer];
+              user = config.users.users.tsnsrv-sidecar.name;
               volumes = [
                 # The service's state dir; we have to infer /var/lib
                 # because the backends don't support using the
@@ -295,7 +298,6 @@ in {
                   {
                     StateDirectory = serviceName;
                     StateDirectoryMode = "0700";
-                    DynamicUser = true;
                     SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
                   }
                   // lockedDownserviceConfig;
