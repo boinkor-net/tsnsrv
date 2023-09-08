@@ -106,6 +106,12 @@
         type = types.listOf types.str;
         default = [];
       };
+
+      extraArgs = mkOption {
+        description = "Extra arguments to pass to this tsnsrv process.";
+        type = types.listOf types.str;
+        default = [];
+      };
     };
   };
 
@@ -136,6 +142,7 @@
     ++ (lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr])
     ++ (map (p: "-prefix=${p}") service.prefixes)
     ++ (map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: service: "${name}: ${service}") service.upstreamHeaders))
+    ++ service.extraArgs
     ++ [service.toURL]);
 in {
   options = with lib; {
