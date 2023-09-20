@@ -171,7 +171,7 @@ func authkeyFromFile(path string) (string, error) {
 	}
 	defer f.Close()
 	key, err := io.ReadAll(f)
-	return string(key), err
+	return strings.TrimSpace(string(key)), err
 }
 
 func (s *validTailnetSrv) run(ctx context.Context) error {
