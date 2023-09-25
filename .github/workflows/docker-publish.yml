@@ -11,8 +11,6 @@ on:
   push:
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
-    # Publish every push to main:
-    branches: ["main"]
   workflow_dispatch:
   workflow_call:
 
