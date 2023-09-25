@@ -48,7 +48,7 @@ jobs:
     steps:
       - name: Determine whether to push
         id: docker_pushable
-        run: echo should=${{ toJSON(github.event_name == 'push' && github.ref_name == 'main') }} >>$GITHUB_OUTPUT
+        run: echo should=${{ toJSON(github.event_name != 'pull_request') }} >>$GITHUB_OUTPUT
 
       - name: Checkout repository
         uses: actions/checkout@v4
