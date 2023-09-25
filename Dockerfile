@@ -1,4 +1,6 @@
-FROM golang:1.21 as builder
+FROM --platform=$TARGETPLATFORM golang:1.21 as builder
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
 
 WORKDIR /work
 ENV CGO_ENABLED=0
@@ -14,7 +16,7 @@ COPY . .
 
 RUN go build -ldflags="-s -w" -v
 
-FROM scratch
+FROM --platform=$TARGETPLATFORM scratch
 COPY --from=builder /work/tsnsrv /usr/bin/tsnsrv
 
 CMD ["/usr/bin/tsnsrv"]
