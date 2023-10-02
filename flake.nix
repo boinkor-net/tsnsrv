@@ -51,7 +51,11 @@
             meta.mainProgram = "tsnsrv";
           };
 
+          # This platform's "natively" built docker image:
           tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage imageArgs;
+
+          tsnsrvOciImage-cross-x86_64-linux = pkgs.pkgsCross.x86_64-linux.dockerTools.buildLayeredImage imageArgs;
+          tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-linux.dockerTools.buildLayeredImage imageArgs;
 
           # To provide a smoother dev experience:
           regenSRI = let
