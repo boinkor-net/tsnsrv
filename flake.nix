@@ -21,6 +21,7 @@
         config,
         pkgs,
         final,
+        system,
         ...
       }: let
         tsnsrvPkg = p:
@@ -94,6 +95,23 @@
           default = config.apps.tsnsrv;
           tsnsrv.program = config.packages.tsnsrv;
           streamTsnsrvOciImage.program = "${pkgs.dockerTools.streamLayeredImage imageArgs}";
+
+          pushImagesToGhcr = {
+            program = flocken.legacyPackages.${system}.mkDockerManifest {
+              branch = builtins.getEnv "GITHUB_REF_NAME";
+              name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
+              version = builtins.getEnv "VERSION";
+
+              # Here we build the x86_64-linux variants only because
+              # that is what runs on GHA, whence we push the images to
+              # ghcr.
+              images = with self.packages; [
+                x86_64-linux.tsnsrvOciImage
+                x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
+              ];
+            };
+            type = "app";
+          };
         };
         formatter = pkgs.alejandra;
 
@@ -117,16 +135,6 @@
 
       flake.nixosModules = {
         default = import ./nixos {flake = self;};
-      };
-
-      flake.apps.x86_64-linux.pushImagesToGhcr = flocken.legacyPackages.x86_64-linux.mkDockerManifest {
-        branch = builtins.getEnv "GITHUB_REF_NAME";
-        name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
-        version = builtins.getEnv "VERSION";
-        images = with self.packages; [
-          x86_64-linux.tsnsrvOciImage
-          x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
-        ];
       };
     };
 
