@@ -2,6 +2,7 @@
   outputs = inputs @ {
     self,
     flake-parts,
+    flocken,
     nixpkgs,
     ...
   }:
@@ -117,6 +118,16 @@
       flake.nixosModules = {
         default = import ./nixos {flake = self;};
       };
+
+      flake.apps.x86_64-linux.pushImagesToGhcr = flocken.legacyPackages.x86_64-linux.mkDockerManifest {
+        branch = builtins.getEnv "GITHUB_REF_NAME";
+        name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
+        version = builtins.getEnv "VERSION";
+        images = with self.packages; [
+          x86_64-linux.tsnsrvOciImage
+          x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
+        ];
+      };
     };
 
   inputs = {
@@ -126,6 +137,10 @@
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
+    };
+    flocken = {
+      url = "github:mirkolenz/flocken/v1";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 }

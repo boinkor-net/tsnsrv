@@ -34,10 +34,6 @@ jobs:
       - name: Determine whether to push
         id: docker_pushable
         run: echo should=${{ toJSON(github.event_name != 'pull_request' && github.event_name != 'merge_group') }} >>$GITHUB_OUTPUT
-      - name: Determine build platforms
-        id: platforms
-        run: |
-          echo platforms=${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }} >>$GITHUB_OUTPUT
 
       - uses: cachix/install-nix-action@v22
       - uses: DeterminateSystems/magic-nix-cache-action@v2
@@ -47,7 +43,10 @@ jobs:
 
       - name: Build the docker images we care about
         run: |
-          nix build --no-link .#tsnsrvOciImage-cross-aarch64-linux .#tsnsrvOciImage
+          nix build .#tsnsrvOciImage-cross-aarch64-linux .#tsnsrvOciImage
+
+      - uses: cihelper/action-semanticrelease-goreleaser@v1
+        id: semanticrelease
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
@@ -59,4 +58,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # TODO: push the docker images to ghcr with skopeo
+      - name: Push to ghcr
+        if: steps.docker_pushable.outputs.should
+        run: nix run .#pushImagesToGhcr --impure
