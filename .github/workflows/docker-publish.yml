@@ -39,11 +39,15 @@ jobs:
         run: |
           echo platforms=${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }} >>$GITHUB_OUTPUT
 
+      - uses: cachix/install-nix-action@v22
+      - uses: DeterminateSystems/magic-nix-cache-action@v2
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Build the docker images we care about
+        run: |
+          nix build --no-link .#tsnsrvOciImage-cross-aarch64-linux .#tsnsrvOciImage
 
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
@@ -55,24 +59,4 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
-      - name: Build and push Docker image for ${{steps.platforms.outputs.platforms}}
-        id: build-and-push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: ${{ steps.platforms.outputs.platforms }}
-          push: ${{ steps.docker_pushable.outputs.should }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-to: type=gha,mode=max
-          cache-from: type=gha
+      # TODO: push the docker images to ghcr with skopeo
