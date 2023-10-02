@@ -22,16 +22,24 @@
         final,
         ...
       }: let
-        imageArgs = pkgs: {
+        tsnsrvPkg = p:
+          p.buildGo121Module {
+            pname = "tsnsrv";
+            version = "0.0.0";
+            vendorHash = builtins.readFile ./tsnsrv.sri;
+            src = with p; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
+            meta.mainProgram = "tsnsrv";
+          };
+        imageArgs = p: {
           name = "tsnsrv";
           tag = "latest";
           contents = [
-            (pkgs.buildEnv {
+            (p.buildEnv {
               name = "image-root";
-              paths = [config.packages.tsnsrv];
+              paths = [(tsnsrvPkg p)];
               pathsToLink = ["/bin" "/tmp"];
             })
-            pkgs.dockerTools.caCertificates
+            p.dockerTools.caCertificates
           ];
 
           config.EntryPoint = ["/bin/tsnsrv"];
@@ -43,13 +51,7 @@
 
         packages = {
           default = config.packages.tsnsrv;
-          tsnsrv = pkgs.buildGo121Module {
-            pname = "tsnsrv";
-            version = "0.0.0";
-            vendorHash = builtins.readFile ./tsnsrv.sri;
-            src = with pkgs; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
-            meta.mainProgram = "tsnsrv";
-          };
+          tsnsrv = tsnsrvPkg pkgs;
 
           # This platform's "natively" built docker image:
           tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
