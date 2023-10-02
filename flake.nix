@@ -22,7 +22,7 @@
         final,
         ...
       }: let
-        imageArgs = {
+        imageArgs = pkgs: {
           name = "tsnsrv";
           tag = "latest";
           contents = [
@@ -52,10 +52,10 @@
           };
 
           # This platform's "natively" built docker image:
-          tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage imageArgs;
+          tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
 
           # "cross-platform" build, mainly to support building on github actions (but also on macOS with apple silicon):
-          tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-multiplatform.dockerTools.buildLayeredImage imageArgs;
+          tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-multiplatform.dockerTools.buildLayeredImage (imageArgs pkgs.pkgsCross.aarch64-multiplatform);
 
           # To provide a smoother dev experience:
           regenSRI = let
