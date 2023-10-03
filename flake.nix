@@ -97,8 +97,14 @@
           streamTsnsrvOciImage.program = "${pkgs.dockerTools.streamLayeredImage imageArgs}";
 
           pushImagesToGhcr = {
-            program = flocken.legacyPackages.${system}.mkDockerManifest {
-              branch = builtins.getEnv "GITHUB_REF_NAME";
+            program = flocken.legacyPackages.${system}.mkDockerManifest (let
+              ref = builtins.getEnv "GITHUB_REF_NAME";
+              branch =
+                if pkgs.lib.hasSuffix "/merge" ref
+                then "pr-${pkgs.lib.removeSuffix "/merge" ref}"
+                else ref;
+            in {
+              inherit branch;
               name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
               version = builtins.getEnv "VERSION";
 
@@ -109,7 +115,7 @@
                 x86_64-linux.tsnsrvOciImage
                 x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
               ];
-            };
+            });
             type = "app";
           };
         };
