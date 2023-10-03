@@ -185,6 +185,7 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 		ControlURL: os.Getenv("TS_URL"),
 	}
 	if s.TsnetVerbose {
+		slog.SetDefault(slog.Default())
 		srv.Logf = log.Printf
 	}
 	if s.AuthkeyPath != "" {
