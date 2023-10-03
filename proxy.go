@@ -171,8 +171,12 @@ func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.Who
 
 	h.Set("X-Tailscale-Node", who.Node.ID.String())
 	h.Set("X-Tailscale-Node-Name", who.Node.ComputedName)
-	if len(who.Node.Capabilities) > 0 {
-		h.Set("X-Tailscale-Node-Caps", strings.Join(who.Node.Capabilities, ", "))
+	if len(who.Node.CapMap) > 0 {
+		var capabilities []string
+		for cap := range who.Node.CapMap {
+			capabilities = append(capabilities, string(cap))
+		}
+		h.Set("X-Tailscale-Node-Caps", strings.Join(capabilities, ", "))
 	}
 	if len(who.Node.Tags) > 0 {
 		h.Set("X-Tailscale-Node-Tags", strings.Join(who.Node.Tags, ", "))
