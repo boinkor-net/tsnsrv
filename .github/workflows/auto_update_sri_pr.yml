@@ -11,6 +11,11 @@ on:
       - go.sum
       - .github/workflows/auto_update_sri_pr.yml
   workflow_dispatch:
+    inputs:
+      push_change:
+        type: boolean
+        description: Directly commit and push to the branch in question
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-$${{ github.head_ref || github.run_id }}
@@ -40,8 +45,13 @@ jobs:
       - name: re-generate SRI
         run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#regenSRI"
 
+      - name: Push changes to ${{github.base_ref}}
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.push_change
+        uses: stefanzweifel/git-auto-commit-action@v4
+
       - name: File pull request
         uses: peter-evans/create-pull-request@v5
+        if: github.event_name != 'workflow_dispatch' || !github.event.inputs.push_change
         with:
           token: ${{ steps.generate-token.outputs.token }}
           author: Flakes Updater <noreply+flakes-updater@boinkor.net>
