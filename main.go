@@ -80,6 +80,7 @@ type TailnetSrv struct {
 	UpstreamHeaders                   headers
 	SuppressTailnetDialer             bool
 	ReadHeaderTimeout                 time.Duration
+	TsnetVerbose                      bool
 }
 
 type validTailnetSrv struct {
@@ -112,6 +113,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.Var(&s.UpstreamHeaders, "upstreamHeader", "Additional headers (separated by ': ') on requests to upstream.")
 	fs.BoolVar(&s.SuppressTailnetDialer, "suppressTailnetDialer", false, "Whether to use the stdlib net.Dialer instead of a tailnet-enabled one")
 	fs.DurationVar(&s.ReadHeaderTimeout, "readHeaderTimeout", 0, "Amount of time to allow for reading HTTP request headers. 0 will disable the timeout but expose the service to the slowloris attack.")
+	fs.BoolVar(&s.TsnetVerbose, "tsnetVerbose", false, "Whether to output tsnet logs.")
 
 	root := &ffcli.Command{
 		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
@@ -181,6 +183,10 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 		Logf:       logger.Discard,
 		Ephemeral:  s.Ephemeral,
 		ControlURL: os.Getenv("TS_URL"),
+	}
+	if s.TsnetVerbose {
+		slog.SetDefault(slog.Default())
+		srv.Logf = log.Printf
 	}
 	if s.AuthkeyPath != "" {
 		var err error
