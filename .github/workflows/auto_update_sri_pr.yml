@@ -48,6 +48,9 @@ jobs:
       - name: Push changes to ${{github.base_ref}}
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.push_change
         uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "Update gomod SRI hash"
+          file_pattern: "*.sri"
 
       - name: File pull request
         uses: peter-evans/create-pull-request@v5
