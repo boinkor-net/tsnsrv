@@ -2,6 +2,7 @@
   outputs = inputs @ {
     self,
     flake-parts,
+    flocken,
     nixpkgs,
     ...
   }:
@@ -20,18 +21,27 @@
         config,
         pkgs,
         final,
+        system,
         ...
       }: let
-        imageArgs = {
+        tsnsrvPkg = p:
+          p.buildGo121Module {
+            pname = "tsnsrv";
+            version = "0.0.0";
+            vendorHash = builtins.readFile ./tsnsrv.sri;
+            src = with p; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
+            meta.mainProgram = "tsnsrv";
+          };
+        imageArgs = p: {
           name = "tsnsrv";
           tag = "latest";
           contents = [
-            (pkgs.buildEnv {
+            (p.buildEnv {
               name = "image-root";
-              paths = [config.packages.tsnsrv];
+              paths = [(tsnsrvPkg p)];
               pathsToLink = ["/bin" "/tmp"];
             })
-            pkgs.dockerTools.caCertificates
+            p.dockerTools.caCertificates
           ];
 
           config.EntryPoint = ["/bin/tsnsrv"];
@@ -43,15 +53,13 @@
 
         packages = {
           default = config.packages.tsnsrv;
-          tsnsrv = pkgs.buildGo121Module {
-            pname = "tsnsrv";
-            version = "0.0.0";
-            vendorHash = builtins.readFile ./tsnsrv.sri;
-            src = with pkgs; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
-            meta.mainProgram = "tsnsrv";
-          };
+          tsnsrv = tsnsrvPkg pkgs;
 
-          tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage imageArgs;
+          # This platform's "natively" built docker image:
+          tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
+
+          # "cross-platform" build, mainly to support building on github actions (but also on macOS with apple silicon):
+          tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-multiplatform.dockerTools.buildLayeredImage (imageArgs pkgs.pkgsCross.aarch64-multiplatform);
 
           # To provide a smoother dev experience:
           regenSRI = let
@@ -87,6 +95,29 @@
           default = config.apps.tsnsrv;
           tsnsrv.program = config.packages.tsnsrv;
           streamTsnsrvOciImage.program = "${pkgs.dockerTools.streamLayeredImage imageArgs}";
+
+          pushImagesToGhcr = {
+            program = flocken.legacyPackages.${system}.mkDockerManifest (let
+              ref = builtins.getEnv "GITHUB_REF_NAME";
+              branch =
+                if pkgs.lib.hasSuffix "/merge" ref
+                then "pr-${pkgs.lib.removeSuffix "/merge" ref}"
+                else ref;
+            in {
+              inherit branch;
+              name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
+              version = builtins.getEnv "VERSION";
+
+              # Here we build the x86_64-linux variants only because
+              # that is what runs on GHA, whence we push the images to
+              # ghcr.
+              images = with self.packages; [
+                x86_64-linux.tsnsrvOciImage
+                x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
+              ];
+            });
+            type = "app";
+          };
         };
         formatter = pkgs.alejandra;
 
@@ -120,6 +151,10 @@
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
+    };
+    flocken = {
+      url = "github:mirkolenz/flocken/v1";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 }
