@@ -41,9 +41,6 @@ jobs:
         run: |
           nix build .#tsnsrvOciImage-cross-aarch64-linux .#tsnsrvOciImage
 
-      - uses: cihelper/action-semanticrelease-goreleaser@v1
-        id: semanticrelease
-
       # Login against a Docker registry except on PR
       # https://github.com/docker/login-action
       - name: Log into registry ${{ env.REGISTRY }}
