@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -123,6 +124,16 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	if err := root.Parse(args); err != nil {
 		return nil, root, fmt.Errorf("could not parse args: %w", err)
 	}
+
+	// If StateDir is not set, then choose a state dir based on the service name.
+	if s.StateDir == "" {
+		dataDir, err := os.UserConfigDir()
+		if err != nil {
+			return nil, root, fmt.Errorf("could not get user configuration directory: %w", err)
+		}
+		s.StateDir = filepath.Join(dataDir, fmt.Sprintf("tsnet-tsnsrv-%s", s.Name))
+	}
+
 	valid, err := s.validate(root.FlagSet.Args())
 	if err != nil {
 		return nil, root, fmt.Errorf("failed to validate args: %w", err)
