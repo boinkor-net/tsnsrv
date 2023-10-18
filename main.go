@@ -127,7 +127,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	// Figure out the state directory
 	stateDir, err := NewStateDir(s.Name, s.StateDir).Compute()
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to compute state dir: %2", err)
+		return nil, nil, fmt.Errorf("unable to compute state dir: %w", err)
 	}
 	s.StateDir = stateDir
 
