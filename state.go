@@ -90,14 +90,15 @@ func lockFilePath() string {
 	return path.Join(os.TempDir(), "tsnsrv.lock")
 }
 
-var tryLockTimeoutErr = errors.New("timeout trying to get the file lock")
+var errTryLockTimeout = errors.New("timeout trying to get the file lock")
+var errTryLockUnlocked = errors.New("lock file remained unlocked")
 
 func lockContext(ctx context.Context) context.Context {
-	ctx, _ = context.WithTimeoutCause(ctx, time.Second*5, tryLockTimeoutErr)
+	ctx, _ = context.WithTimeoutCause(ctx, time.Second*5, errTryLockTimeout)
 	return ctx
 }
 
-func tryLock(ctx context.Context, readLock bool) (func() error, error) {
+func tryLock(ctx context.Context, readLock bool) (func(), error) {
 	lockFile := lockFilePath()
 	lock := flock.New(lockFile)
 	ctx = lockContext(ctx)
@@ -107,17 +108,17 @@ func tryLock(ctx context.Context, readLock bool) (func() error, error) {
 	}
 
 	locked, err := lockFn(ctx, time.Millisecond*100)
-	if errors.Is(err, tryLockTimeoutErr) {
-		return nil, fmt.Errorf("timeout trying to get lock %s another process is using it", lockFile)
+	if errors.Is(err, errTryLockTimeout) {
+		return nil, fmt.Errorf("timeout trying to get lock %s another process is using it. %w", lockFile, errTryLockTimeout)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("trying to lock %s. %w", lockFile, err)
 	}
 	if !locked {
-		return nil, fmt.Errorf("unable to get lock %s", lockFile)
+		return nil, fmt.Errorf("unable to get lock %s. %w", lockFile, errTryLockUnlocked)
 	}
 
-	return lock.Unlock, nil
+	return func() { _ = lock.Unlock() }, nil
 }
 
 func readFileString(file string) (string, error) {
@@ -138,7 +139,11 @@ func writeFileString(file, contents string) error {
 	}
 	defer unlocker()
 
-	return os.WriteFile(file, []byte(contents), 0644)
+	err = os.WriteFile(file, []byte(contents), 0600)
+	if err != nil {
+		return fmt.Errorf("unable to write %s file. %w", file, err)
+	}
+	return nil
 }
 
 func dirExists(dir string) (bool, error) {
@@ -150,5 +155,5 @@ func dirExists(dir string) (bool, error) {
 		return false, nil
 	}
 
-	return false, err
+	return false, fmt.Errorf("can't stat directory %s to see if it exists. %w", dir, err)
 }
