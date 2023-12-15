@@ -104,7 +104,7 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.DurationVar(&s.Timeout, "timeout", 1*time.Minute, "Timeout connecting to the tailnet")
 	fs.Var(&s.AllowedPrefixes, "prefix", "Allowed URL prefixes; if none is set, all prefixes are allowed")
 	fs.BoolVar(&s.StripPrefix, "stripPrefix", true, "Strip prefixes that matched; best set to false if allowing multiple prefixes")
-	fs.StringVar(&s.StateDir, "stateDir", os.Getenv("TS_STATE_DIR"), "Directory containing the persistent tailscale status files. Can also be set by $TS_STATE_DIR; this option takes precedence.")
+	fs.StringVar(&s.StateDir, "stateDir", "", "Directory containing the persistent tailscale status files. Can also be set by $TS_STATE_DIR; this option takes precedence.")
 	fs.StringVar(&s.AuthkeyPath, "authkeyPath", "", "File containing a tailscale auth key. Key is assumed to be in $TS_AUTHKEY in absence of this option.")
 	fs.BoolVar(&s.InsecureHTTPS, "insecureHTTPS", false, "Disable TLS certificate validation on upstream")
 	fs.DurationVar(&s.WhoisTimeout, "whoisTimeout", 1*time.Second, "Maximum amount of time to spend looking up client identities")
@@ -123,6 +123,14 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	if err := root.Parse(args); err != nil {
 		return nil, root, fmt.Errorf("could not parse args: %w", err)
 	}
+
+	// Figure out the state directory
+	stateDir, err := NewStateDir(s.Name, s.StateDir).Compute()
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to compute state dir: %w", err)
+	}
+	s.StateDir = stateDir
+
 	valid, err := s.validate(root.FlagSet.Args())
 	if err != nil {
 		return nil, root, fmt.Errorf("failed to validate args: %w", err)
