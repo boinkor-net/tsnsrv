@@ -1,4 +1,4 @@
-module github.com/antifuchs/tsnsrv
+module github.com/boinkor-net/tsnsrv
 
 go 1.21
 
