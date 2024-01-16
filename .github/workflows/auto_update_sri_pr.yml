@@ -37,7 +37,7 @@ jobs:
         with:
           token: ${{secrets.REPO_CONTENT_UPDATE_TOKEN}}
           fetch-depth: 0 # otherwise, you will failed to push refs to dest repo
-      - uses: cachix/install-nix-action@v24
+      - uses: cachix/install-nix-action@v25
       - uses: DeterminateSystems/magic-nix-cache-action@v2
       - name: re-generate SRI
         run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#regenSRI"
