@@ -237,7 +237,7 @@ in {
     };
   in
     lib.mkMerge [
-      (lib.mkIf (config.services.tsnsrv.enable or config.virtualisation.oci-sidecars.tsnsrv.enable)
+      (lib.mkIf (config.services.tsnsrv.enable || config.virtualisation.oci-sidecars.tsnsrv.enable)
         {users.groups.tsnsrv = {};})
       (lib.mkIf config.services.tsnsrv.enable {
         systemd.services =
