@@ -30,7 +30,7 @@
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
             src = with p; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
-            ldflags = [ "-s" "-w" ];
+            ldflags = ["-s" "-w"];
             meta.mainProgram = "tsnsrv";
           };
         imageArgs = p: {
