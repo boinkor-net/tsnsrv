@@ -36,6 +36,12 @@
         default = ":443";
       };
 
+      loginServerUrl = lib.mkOption {
+        description = "Login server URL to use. If unset, defaults to the official tailscale service.";
+        default = config.services.tsnsrv.defaults.loginServerUrl;
+        type = with types; nullOr str;
+      };
+
       package = mkOption {
         description = "Package to use for this tsnsrv service.";
         default = config.services.tsnsrv.defaults.package;
@@ -163,6 +169,12 @@ in {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
         type = types.path;
       };
+
+      loginServerUrl = lib.mkOption {
+        description = "Login server URL to use. If unset, defaults to the official tailscale service.";
+        default = null;
+        type = with types; nullOr str;
+      };
     };
 
     services.tsnsrv.services = mkOption {
@@ -258,6 +270,9 @@ in {
                     SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
                     StateDirectory = "tsnsrv-${name}";
                     StateDirectoryMode = "0700";
+                  }
+                  // lib.optionalAttrs (service.loginServerUrl != null) {
+                    Environment = "TS_URL=${service.loginServerUrl}";
                   }
                   // lockedDownserviceConfig;
               }
