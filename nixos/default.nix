@@ -4,18 +4,20 @@
   lib,
   ...
 }: let
-  serviceSubmodule = with lib; {
+  serviceSubmodule = with lib; let
+    inherit (config.services.tsnsrv) defaults;
+  in {
     options = {
       authKeyPath = mkOption {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
         type = types.path;
-        default = config.services.tsnsrv.defaults.authKeyPath;
+        default = defaults.authKeyPath;
       };
 
       ephemeral = mkOption {
         description = "Delete the tailnet participant shortly after it goes offline";
         type = types.bool;
-        default = false;
+        default = defaults.ephemeral;
       };
 
       funnel = mkOption {
@@ -33,7 +35,7 @@
       listenAddr = mkOption {
         description = "Address to listen on";
         type = types.str;
-        default = ":443";
+        default = defaults.listenAddr;
       };
 
       loginServerUrl = lib.mkOption {
@@ -57,19 +59,19 @@
       certificateFile = mkOption {
         description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
         type = types.path;
-        default = "";
+        default = defaults.certificateFile;
       };
 
       certificateKey = mkOption {
         description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
         type = types.path;
-        default = "";
+        default = defaults.certificateKey;
       };
 
       acmeHost = mkOption {
         description = "Populate certificateFile and certificateKey option from this certifcate name from security.acme module.";
         type = with types; nullOr str;
-        default = null;
+        default = defaults.acmeHost;
       };
 
       upstreamUnixAddr = mkOption {
@@ -128,7 +130,7 @@
       supplementalGroups = mkOption {
         description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
         type = types.listOf types.str;
-        default = [];
+        default = defaults.supplementalGroups;
       };
 
       extraArgs = mkOption {
@@ -191,10 +193,46 @@ in {
         type = types.path;
       };
 
+      acmeHost = mkOption {
+        description = "Populate certificateFile and certificateKey option from this certifcate name from security.acme module.";
+        type = with types; nullOr str;
+        default = null;
+      };
+
+      certificateFile = mkOption {
+        description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
+        type = types.path;
+        default = "";
+      };
+
+      certificateKey = mkOption {
+        description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
+        type = types.path;
+        default = "";
+      };
+
+      ephemeral = mkOption {
+        description = "Delete the tailnet participant shortly after it goes offline";
+        type = types.bool;
+        default = false;
+      };
+
+      listenAddr = mkOption {
+        description = "Address to listen on";
+        type = types.str;
+        default = ":443";
+      };
+
       loginServerUrl = lib.mkOption {
         description = "Login server URL to use. If unset, defaults to the official tailscale service.";
         default = null;
         type = with types; nullOr str;
+      };
+
+      supplementalGroups = mkOption {
+        description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
+        type = types.listOf types.str;
+        default = [];
       };
     };
 
