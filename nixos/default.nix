@@ -54,6 +54,24 @@
         default = false;
       };
 
+      certificateFile = mkOption {
+        description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
+        type = types.path;
+        default = "";
+      };
+
+      certificateKey = mkOption {
+        description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
+        type = types.path;
+        default = "";
+      };
+
+      acmeHost = mkOption {
+        description = "Populate certificateFile and certificateKey option from this certifcate name from security.acme module.";
+        type = with types; nullOr str;
+        default = null;
+      };
+
       upstreamUnixAddr = mkOption {
         description = "Connect only to the given UNIX Domain Socket";
         type = types.nullOr types.path;
@@ -132,11 +150,14 @@
         then "1s"
         else "0s"
       else service.readHeaderTimeout;
-  in [
+  in
+    [
       "-name=${name}"
       "-ephemeral=${lib.boolToString service.ephemeral}"
       "-funnel=${lib.boolToString service.funnel}"
       "-plaintext=${lib.boolToString service.plaintext}"
+      "-certificateFile=${service.certificateFile}"
+      "-keyFile=${service.keyFile}"
       "-listenAddr=${service.listenAddr}"
       "-stripPrefix=${lib.boolToString service.stripPrefix}"
       "-authkeyPath=${service.authKeyPath}"
@@ -254,10 +275,17 @@ in {
       (lib.mkIf config.services.tsnsrv.enable {
         systemd.services =
           lib.mapAttrs' (
-            name: service:
+            name: service':
               lib.nameValuePair
               "tsnsrv-${name}"
-              {
+              (let
+                service =
+                  service'
+                  // lib.optionalAttrs (service'.acmeHost != null) {
+                    certificateFile = "${config.security.acme.certs.${service.acmeHost}.directory}/fullchain.pem";
+                    keyFile = "${config.security.acme.certs.${service.acmeHost}.directory}/key.pem";
+                  };
+              in {
                 wantedBy = ["multi-user.target"];
                 after = ["network-online.target"];
                 wants = ["network-online.target"];
@@ -275,7 +303,7 @@ in {
                     Environment = "TS_URL=${service.loginServerUrl}";
                   }
                   // lockedDownserviceConfig;
-              }
+              })
           )
           config.services.tsnsrv.services;
       })
