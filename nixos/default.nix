@@ -132,7 +132,7 @@
         then "1s"
         else "0s"
       else service.readHeaderTimeout;
-  in ([
+  in [
       "-name=${name}"
       "-ephemeral=${lib.boolToString service.ephemeral}"
       "-funnel=${lib.boolToString service.funnel}"
@@ -144,12 +144,12 @@
       "-suppressTailnetDialer=${lib.boolToString service.suppressTailnetDialer}"
       "-readHeaderTimeout=${readHeaderTimeout}"
     ]
-    ++ (lib.optionals (service.whoisTimeout != null) ["-whoisTimeout" service.whoisTimeout])
-    ++ (lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr])
-    ++ (map (p: "-prefix=${p}") service.prefixes)
-    ++ (map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: service: "${name}: ${service}") service.upstreamHeaders))
+    ++ lib.optionals (service.whoisTimeout != null) ["-whoisTimeout" service.whoisTimeout]
+    ++ lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr]
+    ++ map (p: "-prefix=${p}") service.prefixes
+    ++ map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: service: "${name}: ${service}") service.upstreamHeaders)
     ++ service.extraArgs
-    ++ [service.toURL]);
+    ++ [service.toURL];
 in {
   options = with lib; {
     services.tsnsrv.enable = mkOption {
@@ -321,7 +321,6 @@ in {
             # systemd unit settings for the respective podman services:
             lib.mapAttrs' (name: sidecar: let
               serviceName = "${config.virtualisation.oci-containers.backend}-${name}";
-              service = sidecar.service;
             in {
               name = serviceName;
               value = {
@@ -329,7 +328,7 @@ in {
                 serviceConfig = {
                   StateDirectory = serviceName;
                   StateDirectoryMode = "0700";
-                  SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
+                  SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ sidecar.service.supplementalGroups;
                 };
               };
             })
