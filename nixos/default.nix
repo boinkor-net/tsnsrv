@@ -4,18 +4,20 @@
   lib,
   ...
 }: let
-  serviceSubmodule = with lib; {
+  serviceSubmodule = with lib; let
+    inherit (config.services.tsnsrv) defaults;
+  in {
     options = {
       authKeyPath = mkOption {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
         type = types.path;
-        default = config.services.tsnsrv.defaults.authKeyPath;
+        default = defaults.authKeyPath;
       };
 
       ephemeral = mkOption {
         description = "Delete the tailnet participant shortly after it goes offline";
         type = types.bool;
-        default = false;
+        default = defaults.ephemeral;
       };
 
       funnel = mkOption {
@@ -33,7 +35,7 @@
       listenAddr = mkOption {
         description = "Address to listen on";
         type = types.str;
-        default = ":443";
+        default = defaults.listenAddr;
       };
 
       loginServerUrl = lib.mkOption {
@@ -52,6 +54,24 @@
         description = "Whether to serve non-TLS-encrypted plaintext HTTP";
         type = types.bool;
         default = false;
+      };
+
+      certificateFile = mkOption {
+        description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
+        type = types.path;
+        default = defaults.certificateFile;
+      };
+
+      certificateKey = mkOption {
+        description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
+        type = types.path;
+        default = defaults.certificateKey;
+      };
+
+      acmeHost = mkOption {
+        description = "Populate certificateFile and certificateKey option from this certifcate name from security.acme module.";
+        type = with types; nullOr str;
+        default = defaults.acmeHost;
       };
 
       upstreamUnixAddr = mkOption {
@@ -110,7 +130,7 @@
       supplementalGroups = mkOption {
         description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
         type = types.listOf types.str;
-        default = [];
+        default = defaults.supplementalGroups;
       };
 
       extraArgs = mkOption {
@@ -132,11 +152,14 @@
         then "1s"
         else "0s"
       else service.readHeaderTimeout;
-  in ([
+  in
+    [
       "-name=${name}"
       "-ephemeral=${lib.boolToString service.ephemeral}"
       "-funnel=${lib.boolToString service.funnel}"
       "-plaintext=${lib.boolToString service.plaintext}"
+      "-certificateFile=${service.certificateFile}"
+      "-keyFile=${service.keyFile}"
       "-listenAddr=${service.listenAddr}"
       "-stripPrefix=${lib.boolToString service.stripPrefix}"
       "-authkeyPath=${service.authKeyPath}"
@@ -144,12 +167,12 @@
       "-suppressTailnetDialer=${lib.boolToString service.suppressTailnetDialer}"
       "-readHeaderTimeout=${readHeaderTimeout}"
     ]
-    ++ (lib.optionals (service.whoisTimeout != null) ["-whoisTimeout" service.whoisTimeout])
-    ++ (lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr])
-    ++ (map (p: "-prefix=${p}") service.prefixes)
-    ++ (map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: service: "${name}: ${service}") service.upstreamHeaders))
+    ++ lib.optionals (service.whoisTimeout != null) ["-whoisTimeout" service.whoisTimeout]
+    ++ lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr]
+    ++ map (p: "-prefix=${p}") service.prefixes
+    ++ map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: service: "${name}: ${service}") service.upstreamHeaders)
     ++ service.extraArgs
-    ++ [service.toURL]);
+    ++ [service.toURL];
 in {
   options = with lib; {
     services.tsnsrv.enable = mkOption {
@@ -170,10 +193,46 @@ in {
         type = types.path;
       };
 
+      acmeHost = mkOption {
+        description = "Populate certificateFile and certificateKey option from this certifcate name from security.acme module.";
+        type = with types; nullOr str;
+        default = null;
+      };
+
+      certificateFile = mkOption {
+        description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
+        type = types.path;
+        default = "";
+      };
+
+      certificateKey = mkOption {
+        description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
+        type = types.path;
+        default = "";
+      };
+
+      ephemeral = mkOption {
+        description = "Delete the tailnet participant shortly after it goes offline";
+        type = types.bool;
+        default = false;
+      };
+
+      listenAddr = mkOption {
+        description = "Address to listen on";
+        type = types.str;
+        default = ":443";
+      };
+
       loginServerUrl = lib.mkOption {
         description = "Login server URL to use. If unset, defaults to the official tailscale service.";
         default = null;
         type = with types; nullOr str;
+      };
+
+      supplementalGroups = mkOption {
+        description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
+        type = types.listOf types.str;
+        default = [];
       };
     };
 
@@ -254,10 +313,17 @@ in {
       (lib.mkIf config.services.tsnsrv.enable {
         systemd.services =
           lib.mapAttrs' (
-            name: service:
+            name: service':
               lib.nameValuePair
               "tsnsrv-${name}"
-              {
+              (let
+                service =
+                  service'
+                  // lib.optionalAttrs (service'.acmeHost != null) {
+                    certificateFile = "${config.security.acme.certs.${service.acmeHost}.directory}/fullchain.pem";
+                    keyFile = "${config.security.acme.certs.${service.acmeHost}.directory}/key.pem";
+                  };
+              in {
                 wantedBy = ["multi-user.target"];
                 after = ["network-online.target"];
                 wants = ["network-online.target"];
@@ -275,7 +341,7 @@ in {
                     Environment = "TS_URL=${service.loginServerUrl}";
                   }
                   // lockedDownserviceConfig;
-              }
+              })
           )
           config.services.tsnsrv.services;
       })
@@ -321,7 +387,6 @@ in {
             # systemd unit settings for the respective podman services:
             lib.mapAttrs' (name: sidecar: let
               serviceName = "${config.virtualisation.oci-containers.backend}-${name}";
-              service = sidecar.service;
             in {
               name = serviceName;
               value = {
@@ -329,7 +394,7 @@ in {
                 serviceConfig = {
                   StateDirectory = serviceName;
                   StateDirectoryMode = "0700";
-                  SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
+                  SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ sidecar.service.supplementalGroups;
                 };
               };
             })

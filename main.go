@@ -65,6 +65,8 @@ type TailnetSrv struct {
 	Ephemeral                         bool
 	Funnel, FunnelOnly                bool
 	ListenAddr                        string
+	certificateFile                   string
+	keyFile                           string
 	Name                              string
 	RecommendedProxyHeaders           bool
 	ServePlaintext                    bool
@@ -98,6 +100,8 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.Funnel, "funnel", false, "Expose a funnel service.")
 	fs.BoolVar(&s.FunnelOnly, "funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
 	fs.StringVar(&s.ListenAddr, "listenAddr", ":443", "Address to listen on; note only :443, :8443 and :10000 are supported with -funnel.")
+	fs.StringVar(&s.certificateFile, "certificateFile", "", "Custom certificate file to use for TLS listening instead of Tailscale's builtin way.")
+	fs.StringVar(&s.keyFile, "keyFile", "", "Custom key file to use for TLS listening instead of Tailscale's builtin way.")
 	fs.StringVar(&s.Name, "name", "", "Name of this service")
 	fs.BoolVar(&s.RecommendedProxyHeaders, "recommendedProxyHeaders", true, "Set Host, X-Scheme, X-Real-Ip, X-Forwarded-{Proto,Server,Port} headers.")
 	fs.BoolVar(&s.ServePlaintext, "plaintext", false, "Serve plaintext HTTP without TLS")
@@ -132,6 +136,8 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 
 var errNameRequired = errors.New("tsnsrv needs a -name")
 var errNoPlaintextOnFunnel = errors.New("can not serve plaintext on a funnel service")
+var errBothCertificateFileKeyFile = errors.New("when providing either a certificate or key file, the other must be provided")
+var errNoPlaintextWithCustomCert = errors.New("can not serve plaintext when using custom certificate and key")
 var errOnlyOneAddrType = errors.New("can only proxy to one address at a time, pass either -upstreamUnixAddr or -upstreamTCPAddr")
 var errFunnelRequired = errors.New("-funnel is required if -funnelOnly is set")
 var errNoDestURL = errors.New("tsnsrv requires a destination URL")
@@ -143,6 +149,12 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 	}
 	if s.ServePlaintext && s.Funnel {
 		errs = append(errs, errNoPlaintextOnFunnel)
+	}
+	if s.certificateFile != "" && s.keyFile == "" || s.certificateFile == "" && s.keyFile != "" {
+		errs = append(errs, errBothCertificateFileKeyFile)
+	}
+	if s.ServePlaintext && s.certificateFile != "" && s.keyFile != "" {
+		errs = append(errs, errNoPlaintextWithCustomCert)
 	}
 	if s.UpstreamTCPAddr != "" && s.UpstreamUnixAddr != "" {
 		errs = append(errs, errOnlyOneAddrType)
@@ -276,6 +288,22 @@ func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
 			opts = append(opts, tsnet.FunnelOnly())
 		}
 		l, err = srv.ListenFunnel("tcp", s.ListenAddr, opts...)
+	case !s.ServePlaintext && (s.certificateFile != "" || s.keyFile != ""):
+		// re-implement tailscale's Server.ListenTLS function with custom certificate for custom servers which do not offer a getCert function
+		cer, err := tls.LoadX509KeyPair(s.certificateFile, s.keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("listener for %v: failed loading certificates: %w", srv, err)
+		}
+
+		ln, err := srv.Listen("tcp", s.ListenAddr)
+		if err != nil {
+			return nil, fmt.Errorf("listener for %v: %w", srv, err)
+		}
+
+		l = tls.NewListener(ln, &tls.Config{
+			Certificates: []tls.Certificate{cer},
+			MinVersion:   tls.VersionTLS12,
+		})
 	case !s.ServePlaintext:
 		l, err = srv.ListenTLS("tcp", s.ListenAddr)
 	default:
