@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
+	"github.com/peterbourgon/unixtransport"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/exp/slog"
 	"tailscale.com/client/tailscale"
@@ -250,7 +251,9 @@ func (s *validTailnetSrv) run(ctx context.Context) error {
 			return conn, nil
 		}
 	}
+
 	transport := &http.Transport{DialContext: dial}
+	unixtransport.Register(transport)
 	if s.InsecureHTTPS {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec This is explicitly requested by the user
 	}
