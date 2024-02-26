@@ -280,6 +280,11 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 		Handler:           mux,
 		ReadHeaderTimeout: s.ReadHeaderTimeout,
 	}
+
+	if !s.ServePlaintext && (s.certificateFile != "" || s.keyFile != "") {
+		return fmt.Errorf("while serving: %w", server.ServeTLS(l, s.certificateFile, s.keyFile))
+	}
+
 	return fmt.Errorf("while serving: %w", server.Serve(l))
 }
 
@@ -293,23 +298,7 @@ func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
 			opts = append(opts, tsnet.FunnelOnly())
 		}
 		l, err = srv.ListenFunnel("tcp", s.ListenAddr, opts...)
-	case !s.ServePlaintext && (s.certificateFile != "" || s.keyFile != ""):
-		// re-implement tailscale's Server.ListenTLS function with custom certificate for custom servers which do not offer a getCert function
-		cer, err := tls.LoadX509KeyPair(s.certificateFile, s.keyFile)
-		if err != nil {
-			return nil, fmt.Errorf("listener for %v: failed loading certificates: %w", srv, err)
-		}
-
-		ln, err := srv.Listen("tcp", s.ListenAddr)
-		if err != nil {
-			return nil, fmt.Errorf("listener for %v: %w", srv, err)
-		}
-
-		l = tls.NewListener(ln, &tls.Config{
-			Certificates: []tls.Certificate{cer},
-			MinVersion:   tls.VersionTLS12,
-		})
-	case !s.ServePlaintext:
+	case !s.ServePlaintext && (s.certificateFile == "" || s.keyFile == ""):
 		l, err = srv.ListenTLS("tcp", s.ListenAddr)
 	default:
 		l, err = srv.Listen("tcp", s.ListenAddr)
