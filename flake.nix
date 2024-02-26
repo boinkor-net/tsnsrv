@@ -24,15 +24,15 @@
         system,
         ...
       }: let
-        tsnsrvPkg = p:
+        tsnsrvPkg = p: subPackage:
           p.buildGo122Module {
-            pname = "tsnsrv";
+            pname = builtins.baseNameOf subPackage;
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
             src = with p; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
-            subPackages = ["cmd/tsnsrv"];
+            subPackages = [subPackage];
             ldflags = ["-s" "-w"];
-            meta.mainProgram = "tsnsrv";
+            meta.mainProgram = builtins.baseNameOf subPackage;
           };
         imageArgs = p: {
           name = "tsnsrv";
@@ -40,7 +40,7 @@
           contents = [
             (p.buildEnv {
               name = "image-root";
-              paths = [(tsnsrvPkg p)];
+              paths = [(tsnsrvPkg p "cmd/tsnsrv")];
               pathsToLink = ["/bin" "/tmp"];
             })
             p.dockerTools.caCertificates
@@ -55,7 +55,8 @@
 
         packages = {
           default = config.packages.tsnsrv;
-          tsnsrv = tsnsrvPkg pkgs;
+          tsnsrv = tsnsrvPkg pkgs "cmd/tsnsrv";
+          tsnsrvCmdLineValidator = tsnsrvPkg pkgs "cmd/tsnsrvCmdLineValidator";
 
           # This platform's "natively" built docker image:
           tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
