@@ -1,4 +1,4 @@
-package main
+package tsnsrv
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -91,7 +92,8 @@ type validTailnetSrv struct {
 	client  *tailscale.LocalClient
 }
 
-func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
+// TailnetSrvFromArgs constructs a validated tailnet service from commandline arguments.
+func TailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
 	s := &TailnetSrv{}
 	fs := flag.NewFlagSet("tsnsrv", flag.ExitOnError)
 	fs.StringVar(&s.UpstreamTCPAddr, "upstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
@@ -120,11 +122,11 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.TsnetVerbose, "tsnetVerbose", false, "Whether to output tsnet logs.")
 
 	root := &ffcli.Command{
-		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
+		ShortUsage: fmt.Sprintf("%s -name <serviceName> [flags] <toURL>", path.Base(args[0])),
 		FlagSet:    fs,
 		Exec:       func(context.Context, []string) error { return nil },
 	}
-	if err := root.Parse(args); err != nil {
+	if err := root.Parse(args[1:]); err != nil {
 		return nil, root, fmt.Errorf("could not parse args: %w", err)
 	}
 	valid, err := s.validate(root.FlagSet.Args())
@@ -188,7 +190,7 @@ func authkeyFromFile(path string) (string, error) {
 	return strings.TrimSpace(string(key)), err
 }
 
-func (s *validTailnetSrv) run(ctx context.Context) error {
+func (s *validTailnetSrv) Run(ctx context.Context) error {
 	srv := &tsnet.Server{
 		Hostname:   s.Name,
 		Dir:        s.StateDir,
@@ -334,14 +336,4 @@ func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
 		os.Exit(20)
 	}()
 	return nil
-}
-
-func main() {
-	s, cmd, err := tailnetSrvFromArgs(os.Args[1:])
-	if err != nil {
-		log.Fatalf("Invalid CLI usage. Errors:\n%v\n\n%v", errors.Unwrap(err), ffcli.DefaultUsageFunc(cmd))
-	}
-	if err := s.run(context.Background()); err != nil {
-		log.Fatal(err)
-	}
 }
