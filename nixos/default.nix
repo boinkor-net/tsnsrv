@@ -58,13 +58,13 @@
 
       certificateFile = mkOption {
         description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
-        type = types.path;
+        type = with types; nullOr path;
         default = defaults.certificateFile;
       };
 
       certificateKey = mkOption {
         description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
-        type = types.path;
+        type = with types; nullOr path;
         default = defaults.certificateKey;
       };
 
@@ -158,8 +158,6 @@
       "-ephemeral=${lib.boolToString service.ephemeral}"
       "-funnel=${lib.boolToString service.funnel}"
       "-plaintext=${lib.boolToString service.plaintext}"
-      "-certificateFile=${service.certificateFile}"
-      "-keyFile=${service.keyFile}"
       "-listenAddr=${service.listenAddr}"
       "-stripPrefix=${lib.boolToString service.stripPrefix}"
       "-authkeyPath=${service.authKeyPath}"
@@ -169,6 +167,10 @@
     ]
     ++ lib.optionals (service.whoisTimeout != null) ["-whoisTimeout" service.whoisTimeout]
     ++ lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr]
+    ++ lib.optionals (service.certificateFile != null && service.certificateKey != null) [
+      "-certificateFile=${service.certificateFile}"
+      "-keyFile=${service.certificateKey}"
+    ]
     ++ map (p: "-prefix=${p}") service.prefixes
     ++ map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: service: "${name}: ${service}") service.upstreamHeaders)
     ++ service.extraArgs
@@ -201,14 +203,14 @@ in {
 
       certificateFile = mkOption {
         description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
-        type = types.path;
-        default = "";
+        type = with types; nullOr path;
+        default = null;
       };
 
       certificateKey = mkOption {
         description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
-        type = types.path;
-        default = "";
+        type = with types; nullOr path;
+        default = null;
       };
 
       ephemeral = mkOption {
@@ -311,6 +313,13 @@ in {
       (lib.mkIf (config.services.tsnsrv.enable || config.virtualisation.oci-sidecars.tsnsrv.enable)
         {users.groups.tsnsrv = {};})
       (lib.mkIf config.services.tsnsrv.enable {
+        assertions =
+          lib.mapAttrsToList (name: service: {
+            assertion = ((service.certificateFile != null) && (service.certificateKey != null)) || ((service.certificateFile == null) && (service.certificateKey == null));
+            message = "Both certificateFile and certificateKey must either be set or null on services.tsnsrv.services.${name}";
+          })
+          config.services.tsnsrv.services;
+
         systemd.services =
           lib.mapAttrs' (
             name: service':
@@ -321,7 +330,7 @@ in {
                   service'
                   // lib.optionalAttrs (service'.acmeHost != null) {
                     certificateFile = "${config.security.acme.certs.${service.acmeHost}.directory}/fullchain.pem";
-                    keyFile = "${config.security.acme.certs.${service.acmeHost}.directory}/key.pem";
+                    certificateKey = "${config.security.acme.certs.${service.acmeHost}.directory}/key.pem";
                   };
               in {
                 wantedBy = ["multi-user.target"];
