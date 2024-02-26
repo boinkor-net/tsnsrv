@@ -167,10 +167,7 @@
     ]
     ++ lib.optionals (service.whoisTimeout != null) ["-whoisTimeout" service.whoisTimeout]
     ++ lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr]
-    ++ lib.optionals (
-      (lib.assertMsg (((service.certificateFile != null) && (service.certificateKey != null)) || ((service.certificateFile == null) && (service.certificateKey == null))) "Both certificateFile and certificateKey must be set or null on services.tsnsrv.${name}")
-      && (service.certificateFile != null && service.certificateKey != null)
-    ) [
+    ++ lib.optionals (service.certificateFile != null && service.certificateKey != null) [
       "-certificateFile=${service.certificateFile}"
       "-keyFile=${service.certificateKey}"
     ]
@@ -316,6 +313,13 @@ in {
       (lib.mkIf (config.services.tsnsrv.enable || config.virtualisation.oci-sidecars.tsnsrv.enable)
         {users.groups.tsnsrv = {};})
       (lib.mkIf config.services.tsnsrv.enable {
+        assertions =
+          lib.mapAttrsToList (name: service: {
+            assertion = ((service.certificateFile != null) && (service.certificateKey != null)) || ((service.certificateFile == null) && (service.certificateKey == null));
+            message = "Both certificateFile and certificateKey must either be set or null on services.tsnsrv.services.${name}";
+          })
+          config.services.tsnsrv.services;
+
         systemd.services =
           lib.mapAttrs' (
             name: service':
