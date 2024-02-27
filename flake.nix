@@ -139,42 +139,112 @@
                 hostPkgs = pkgs;
 
                 defaults.services.tsnsrv.enable = true;
-                defaults.services.tsnsrv.defaults.package = config.packages.tsnsrvCmdLineValidator;
-                defaults.services.tsnsrv.defaults.authKeyPath = "/dev/null";
+                defaults.services.tsnsrv.defaults.tsnetVerbose = true;
 
-                nodes.machine = {...}:
-                  {
-                    imports = [(import ./nixos {flake = self;})];
+                # defaults.services.tsnsrv.defaults.package = config.packages.tsnsrvCmdLineValidator;
 
-                    virtualisation.cores = 4;
-                    virtualisation.memorySize = 1024;
-                  }
-                  // testConfig;
+                nodes.machine = {
+                  config,
+                  pkgs,
+                  lib,
+                  ...
+                }: {
+                  imports = [
+                    (import ./nixos {flake = self;})
+                    testConfig
+                  ];
+
+                  environment.systemPackages = [
+                    pkgs.headscale
+                    pkgs.tailscale
+                    (pkgs.writeShellApplication {
+                      name = "tailscale-up-for-tests";
+                      text = ''
+                        systemctl start --wait generate-tsnsrv-authkey@tailscaled.service
+                        tailscale up \
+                          --login-server=${config.services.headscale.settings.server_url} \
+                          --auth-key="$(cat /var/lib/headscale-authkeys/tailscaled.preauth-key)"
+                      '';
+                    })
+                  ];
+                  virtualisation.cores = 4;
+                  virtualisation.memorySize = 1024;
+                  services.headscale.enable = true;
+                  services.tailscale = {
+                    enable = true;
+                  };
+                  systemd.services."generate-tsnsrv-authkey@" = {
+                    description = "Generate headscale authkey for %i";
+                    serviceConfig.ExecStart = let
+                      startScript = pkgs.writeShellApplication {
+                        name = "generate-tsnsrv-authkey";
+                        runtimeInputs = [pkgs.headscale pkgs.jq];
+                        text = ''
+                          set -x
+                          headscale users create "$1"
+                          headscale preauthkeys create --reusable -e 24h -u "$1" | tail -n1 > "$STATE_DIRECTORY"/"$1".preauth-key
+                          echo generated "$STATE_DIRECTORY"/"$1".preauth-key
+                          cat "$STATE_DIRECTORY"/"$1".preauth-key
+                        '';
+                      };
+                    in "${lib.getExe startScript} %i";
+                    wants = ["headscale.service"];
+                    after = ["headscale.service"];
+                    serviceConfig.Type = "oneshot";
+                    serviceConfig.StateDirectory = "headscale-authkeys";
+                    serviceConfig.Group = "tsnsrv";
+                    unitConfig.Requires = ["headscale.service"];
+                  };
+                };
 
                 testScript = ''
                   machine.start()
+                  machine.wait_for_unit("tailscaled.service")
+                  machine.succeed("tailscale-up-for-tests")
                   ${testScript}
                 '';
               };
           in {
             nixos-basic = cmdLineValidation {
               testConfig = {
-                services.tsnsrv.services.basic.toURL = "http://127.0.0.1:3000";
-              };
-              testScript = ''
-                machine.wait_for_unit("tsnsrv-basic")
-              '';
-            };
-            nixos-with-custom-certs = cmdLineValidation {
-              testConfig = {
-                services.tsnsrv.services.custom = {
-                  toURL = "http://127.0.0.1:3000";
-                  certificateFile = "/tmp/cert.pem";
-                  certificateKey = "/tmp/key.pem";
+                config,
+                pkgs,
+                lib,
+                ...
+              }: {
+                systemd.services.tsnsrv-basic = {
+                  wants = ["generate-tsnsrv-authkey@basic.service"];
+                  after = ["generate-tsnsrv-authkey@basic.service"];
+                  unitConfig.Requires = ["generate-tsnsrv-authkey@basic.service"];
+                };
+                services.static-web-server = {
+                  enable = true;
+                  listen = "127.0.0.1:3000";
+                  root = pkgs.writeTextDir "index.html" "It works!";
+                };
+                services.tsnsrv = {
+                  defaults.loginServerUrl = config.services.headscale.settings.server_url;
+                  defaults.authKeyPath = "/var/lib/headscale-authkeys/basic.preauth-key";
+                  services.basic = {
+                    timeout = "10s";
+                    listenAddr = ":80";
+                    plaintext = true; # HTTPS requires certs
+                    toURL = "http://127.0.0.1:3000";
+                  };
                 };
               };
               testScript = ''
-                machine.wait_for_unit("tsnsrv-custom")
+                import json
+
+                # TODO: Once https://github.com/juanfont/headscale/issues/1797 is fixed, that defensive grep can go away.
+                machine.wait_until_succeeds("headscale nodes list -o json-line | grep '^\[.*basic'")
+
+                # We don't have magic DNS in this setup, so let's figure out the IP from the node list:
+                output = json.loads(machine.succeed("headscale nodes list -o json-line | grep '^\['"))
+                tsnsrv_ip = [elt["ip_addresses"][0] for elt in output if elt["given_name"] == "basic"][0]
+                print(f"tsnsrv seems up, with IP {tsnsrv_ip}")
+                machine.wait_until_succeeds(f"tailscale ping {tsnsrv_ip}", timeout=10)
+                machine.succeed(f"curl -f http://{tsnsrv_ip}")
               '';
             };
           };
