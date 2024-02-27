@@ -24,14 +24,15 @@
         system,
         ...
       }: let
-        tsnsrvPkg = p:
+        tsnsrvPkg = p: subPackage:
           p.buildGo122Module {
-            pname = "tsnsrv";
+            pname = builtins.baseNameOf subPackage;
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
             src = with p; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
+            subPackages = [subPackage];
             ldflags = ["-s" "-w"];
-            meta.mainProgram = "tsnsrv";
+            meta.mainProgram = builtins.baseNameOf subPackage;
           };
         imageArgs = p: {
           name = "tsnsrv";
@@ -39,7 +40,7 @@
           contents = [
             (p.buildEnv {
               name = "image-root";
-              paths = [(tsnsrvPkg p)];
+              paths = [(tsnsrvPkg p "cmd/tsnsrv")];
               pathsToLink = ["/bin" "/tmp"];
             })
             p.dockerTools.caCertificates
@@ -54,7 +55,8 @@
 
         packages = {
           default = config.packages.tsnsrv;
-          tsnsrv = tsnsrvPkg pkgs;
+          tsnsrv = tsnsrvPkg pkgs "cmd/tsnsrv";
+          tsnsrvCmdLineValidator = tsnsrvPkg pkgs "cmd/tsnsrvCmdLineValidator";
 
           # This platform's "natively" built docker image:
           tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
@@ -121,6 +123,61 @@
           };
         };
         formatter = pkgs.alejandra;
+
+        checks = let
+          nixos-lib = import "${nixpkgs}/nixos/lib" {};
+        in
+          if ! pkgs.lib.hasSuffix "linux" system
+          then {}
+          else let
+            cmdLineValidation = {
+              testConfig,
+              testScript,
+            }:
+              nixos-lib.runTest {
+                name = "tsnsrv-nixos";
+                hostPkgs = pkgs;
+
+                defaults.services.tsnsrv.enable = true;
+                defaults.services.tsnsrv.defaults.package = config.packages.tsnsrvCmdLineValidator;
+                defaults.services.tsnsrv.defaults.authKeyPath = "/dev/null";
+
+                nodes.machine = {...}:
+                  {
+                    imports = [(import ./nixos {flake = self;})];
+
+                    virtualisation.cores = 4;
+                    virtualisation.memorySize = 1024;
+                  }
+                  // testConfig;
+
+                testScript = ''
+                  machine.start()
+                  ${testScript}
+                '';
+              };
+          in {
+            nixos-basic = cmdLineValidation {
+              testConfig = {
+                services.tsnsrv.services.basic.toURL = "http://127.0.0.1:3000";
+              };
+              testScript = ''
+                machine.wait_for_unit("tsnsrv-basic")
+              '';
+            };
+            nixos-with-custom-certs = cmdLineValidation {
+              testConfig = {
+                services.tsnsrv.services.custom = {
+                  toURL = "http://127.0.0.1:3000";
+                  certificateFile = "/tmp/cert.pem";
+                  certificateKey = "/tmp/key.pem";
+                };
+              };
+              testScript = ''
+                machine.wait_for_unit("tsnsrv-custom")
+              '';
+            };
+          };
 
         devshells.default = {
           commands = [

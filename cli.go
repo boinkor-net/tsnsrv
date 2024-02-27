@@ -1,4 +1,4 @@
-package main
+package tsnsrv
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -85,13 +86,17 @@ type TailnetSrv struct {
 	TsnetVerbose                      bool
 }
 
-type validTailnetSrv struct {
+// ValidTailnetSrv is a TailnetSrv that has been constructed from validated CLI arguments.
+//
+// Use TailnetSrvFromArgs to get an instance of it.
+type ValidTailnetSrv struct {
 	TailnetSrv
 	DestURL *url.URL
 	client  *tailscale.LocalClient
 }
 
-func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error) {
+// TailnetSrvFromArgs constructs a validated tailnet service from commandline arguments.
+func TailnetSrvFromArgs(args []string) (*ValidTailnetSrv, *ffcli.Command, error) {
 	s := &TailnetSrv{}
 	fs := flag.NewFlagSet("tsnsrv", flag.ExitOnError)
 	fs.StringVar(&s.UpstreamTCPAddr, "upstreamTCPAddr", "", "Proxy to an HTTP service listening on this TCP address")
@@ -120,11 +125,11 @@ func tailnetSrvFromArgs(args []string) (*validTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.TsnetVerbose, "tsnetVerbose", false, "Whether to output tsnet logs.")
 
 	root := &ffcli.Command{
-		ShortUsage: "tsnsrv -name <serviceName> [flags] <toURL>",
+		ShortUsage: fmt.Sprintf("%s -name <serviceName> [flags] <toURL>", path.Base(args[0])),
 		FlagSet:    fs,
 		Exec:       func(context.Context, []string) error { return nil },
 	}
-	if err := root.Parse(args); err != nil {
+	if err := root.Parse(args[1:]); err != nil {
 		return nil, root, fmt.Errorf("could not parse args: %w", err)
 	}
 	valid, err := s.validate(root.FlagSet.Args())
@@ -142,7 +147,7 @@ var errOnlyOneAddrType = errors.New("can only proxy to one address at a time, pa
 var errFunnelRequired = errors.New("-funnel is required if -funnelOnly is set")
 var errNoDestURL = errors.New("tsnsrv requires a destination URL")
 
-func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
+func (s *TailnetSrv) validate(args []string) (*ValidTailnetSrv, error) {
 	var errs []error
 	if s.Name == "" {
 		errs = append(errs, errNameRequired)
@@ -174,7 +179,7 @@ func (s *TailnetSrv) validate(args []string) (*validTailnetSrv, error) {
 		return nil, errors.Join(errs...)
 	}
 
-	valid := validTailnetSrv{TailnetSrv: *s, DestURL: destURL}
+	valid := ValidTailnetSrv{TailnetSrv: *s, DestURL: destURL}
 	return &valid, nil
 }
 
@@ -188,7 +193,7 @@ func authkeyFromFile(path string) (string, error) {
 	return strings.TrimSpace(string(key)), err
 }
 
-func (s *validTailnetSrv) run(ctx context.Context) error {
+func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 	srv := &tsnet.Server{
 		Hostname:   s.Name,
 		Dir:        s.StateDir,
@@ -315,7 +320,7 @@ func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
 	return l, nil
 }
 
-func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
+func (s *ValidTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
 	if s.PrometheusAddr == "" {
 		return nil
 	}
@@ -334,14 +339,4 @@ func (s *validTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
 		os.Exit(20)
 	}()
 	return nil
-}
-
-func main() {
-	s, cmd, err := tailnetSrvFromArgs(os.Args[1:])
-	if err != nil {
-		log.Fatalf("Invalid CLI usage. Errors:\n%v\n\n%v", errors.Unwrap(err), ffcli.DefaultUsageFunc(cmd))
-	}
-	if err := s.run(context.Background()); err != nil {
-		log.Fatal(err)
-	}
 }
