@@ -66,7 +66,7 @@ func (c *proxyContext) observeResponse(res *http.Response) {
 	)
 }
 
-func (s *validTailnetSrv) modifyResponse(res *http.Response) error {
+func (s *ValidTailnetSrv) modifyResponse(res *http.Response) error {
 	p := res.Request.Context().Value(proxyContextKey).(*proxyContext)
 	if p != nil {
 		p.observeResponse(res)
@@ -74,7 +74,7 @@ func (s *validTailnetSrv) modifyResponse(res *http.Response) error {
 	return nil
 }
 
-func (s *validTailnetSrv) errorHandler(rw http.ResponseWriter, _ *http.Request, err error) {
+func (s *ValidTailnetSrv) errorHandler(rw http.ResponseWriter, _ *http.Request, err error) {
 	slog.Warn("proxy error",
 		"error", err,
 	)
@@ -82,7 +82,7 @@ func (s *validTailnetSrv) errorHandler(rw http.ResponseWriter, _ *http.Request, 
 	rw.WriteHeader(http.StatusBadGateway)
 }
 
-func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
+func (s *ValidTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 	r.SetURL(s.DestURL)
 	if r.In.URL.Path == "" {
 		r.Out.URL.Path = s.DestURL.Path
@@ -123,7 +123,7 @@ func (s *validTailnetSrv) rewrite(r *httputil.ProxyRequest) {
 }
 
 // Clean up and set user/node identity headers:.
-func (s *validTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.WhoIsResponse {
+func (s *ValidTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.WhoIsResponse {
 	// First, clean out any input we received that looks like TS setting headers:
 	for k := range r.Out.Header {
 		if strings.HasPrefix(k, "X-Tailscale-") {
@@ -217,7 +217,7 @@ func matchPrefixes(prefixes []string, strip bool, handler http.Handler) http.Han
 	})
 }
 
-func (s *validTailnetSrv) mux(transport http.RoundTripper) http.Handler {
+func (s *ValidTailnetSrv) mux(transport http.RoundTripper) http.Handler {
 	proxy := &httputil.ReverseProxy{
 		Rewrite:        s.rewrite,
 		ModifyResponse: s.modifyResponse,
