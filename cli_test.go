@@ -35,7 +35,7 @@ func TestFromArgs(t *testing.T) {
 		test := elt
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			v, _, err := tailnetSrvFromArgs(test.args)
+			v, _, err := TailnetSrvFromArgs(append([]string{"tsnsrv"}, test.args...))
 			if test.ok {
 				if err != nil {
 					t.Errorf("Unexpected failure to parse %#v: %v", test.args, err)
@@ -64,7 +64,7 @@ func TestPrefixServing(t *testing.T) {
 	ts := httptest.NewServer(testmux)
 	defer ts.Close()
 
-	s, _, err := tailnetSrvFromArgs([]string{"-name", "TestPrefixServing", "-ephemeral",
+	s, _, err := TailnetSrvFromArgs([]string{"tsnsrv", "-name", "TestPrefixServing", "-ephemeral",
 		"-prefix", "/subpath", "-prefix", "/other/subpath",
 		ts.URL,
 	})
@@ -124,7 +124,7 @@ func TestRouting(t *testing.T) {
 			ts := httptest.NewServer(testmux)
 			defer ts.Close()
 
-			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestRouting", "-ephemeral", "-prefix", test.fromPath, fmt.Sprintf("-stripPrefix=%v", test.strip),
+			s, _, err := TailnetSrvFromArgs([]string{"tsnsrv", "-name", "TestRouting", "-ephemeral", "-prefix", test.fromPath, fmt.Sprintf("-stripPrefix=%v", test.strip),
 				ts.URL + test.toURLPath,
 			})
 			require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestHeaderSanitization(t *testing.T) {
 	ts := httptest.NewServer(testmux)
 	defer ts.Close()
 
-	s, _, err := tailnetSrvFromArgs([]string{"-name", "TestPrefixServing", "-ephemeral",
+	s, _, err := TailnetSrvFromArgs([]string{"tsnsrv", "-name", "TestPrefixServing", "-ephemeral",
 		ts.URL,
 	})
 	require.NoError(t, err)
@@ -187,7 +187,7 @@ func TestCustomHeaders(t *testing.T) {
 			ts := httptest.NewServer(testmux)
 			defer ts.Close()
 
-			s, _, err := tailnetSrvFromArgs([]string{"-name", "TestPrefixServing",
+			s, _, err := TailnetSrvFromArgs([]string{"tsnsrv", "-name", "TestPrefixServing",
 				"-upstreamHeader", fmt.Sprintf("%v: %v", test.hn, test.hv),
 				ts.URL,
 			})
