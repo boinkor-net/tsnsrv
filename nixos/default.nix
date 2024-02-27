@@ -133,6 +133,18 @@
         default = defaults.supplementalGroups;
       };
 
+      timeout = mkOption {
+        description = "Maximum amount of time that authenticating to the tailscale API may take";
+        type = with types; nullOr str;
+        default = defaults.timeout;
+      };
+
+      tsnetVerbose = mkOption {
+        description = "Whether to log verbosely from tsnet. Can be useful for seeing first-time authentication URLs.";
+        type = types.bool;
+        default = defaults.tsnetVerbose;
+      };
+
       extraArgs = mkOption {
         description = "Extra arguments to pass to this tsnsrv process.";
         type = types.listOf types.str;
@@ -164,6 +176,7 @@
       "-insecureHTTPS=${lib.boolToString service.insecureHTTPS}"
       "-suppressTailnetDialer=${lib.boolToString service.suppressTailnetDialer}"
       "-readHeaderTimeout=${readHeaderTimeout}"
+      "-tsnetVerbose=${lib.boolToString service.tsnetVerbose}"
     ]
     ++ lib.optionals (service.whoisTimeout != null) ["-whoisTimeout" service.whoisTimeout]
     ++ lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr]
@@ -171,6 +184,7 @@
       "-certificateFile=${service.certificateFile}"
       "-keyFile=${service.certificateKey}"
     ]
+    ++ lib.optionals (service.timeout != null) ["-timeout=${service.timeout}"]
     ++ map (p: "-prefix=${p}") service.prefixes
     ++ map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: service: "${name}: ${service}") service.upstreamHeaders)
     ++ service.extraArgs
@@ -235,6 +249,18 @@ in {
         description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
         type = types.listOf types.str;
         default = [];
+      };
+
+      timeout = mkOption {
+        description = "Maximum amount of time that authenticating to the tailscale API may take";
+        type = with types; nullOr str;
+        default = null;
+      };
+
+      tsnetVerbose = mkOption {
+        description = "Whether to log verbosely from tsnet. Can be useful for seeing first-time authentication URLs.";
+        type = types.bool;
+        default = false;
       };
     };
 
