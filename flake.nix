@@ -130,6 +130,7 @@
           if ! pkgs.lib.hasSuffix "linux" system
           then {}
           else let
+            stunPort = 3478;
             cmdLineValidation = {
               testConfig,
               testScript,
@@ -169,7 +170,18 @@
                   ];
                   virtualisation.cores = 4;
                   virtualisation.memorySize = 1024;
-                  services.headscale.enable = true;
+                  services.headscale = {
+                    enable = true;
+                    settings = {
+                      ip_prefixes = ["100.64.0.0/10"];
+                      derp.server = {
+                        enabled = true;
+                        region_id = 999;
+                        stun_listen_addr = "0.0.0.0:${toString stunPort}";
+                      };
+                    };
+                  };
+
                   services.tailscale = {
                     enable = true;
                   };
@@ -199,8 +211,8 @@
 
                 testScript = ''
                   machine.start()
-                  machine.wait_for_unit("tailscaled.service")
-                  machine.succeed("tailscale-up-for-tests")
+                  machine.wait_for_unit("tailscaled.service", timeout=10)
+                  machine.succeed("tailscale-up-for-tests", timeout=10)
                   ${testScript}
                 '';
               };
