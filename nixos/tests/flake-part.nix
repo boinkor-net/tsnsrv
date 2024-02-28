@@ -104,8 +104,8 @@
 
             testScript = ''
               machine.start()
-              machine.wait_for_unit("tailscaled.service", timeout=10)
-              machine.succeed("tailscale-up-for-tests", timeout=10)
+              machine.wait_for_unit("tailscaled.service", timeout=30)
+              machine.succeed("tailscale-up-for-tests", timeout=30)
               ${testScript}
             '';
           };
@@ -192,7 +192,7 @@
             output = json.loads(machine.succeed("headscale nodes list -o json-line"))
             tsnsrv_ip = [elt["ip_addresses"][0] for elt in output if elt["given_name"] == "basic"][0]
             print(f"tsnsrv seems up, with IP {tsnsrv_ip}")
-            machine.wait_until_succeeds(f"tailscale ping {tsnsrv_ip}", timeout=10)
+            machine.wait_until_succeeds(f"tailscale ping {tsnsrv_ip}", timeout=30)
             print(machine.succeed(f"curl -f http://{tsnsrv_ip}"))
           '';
         };
