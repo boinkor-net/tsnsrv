@@ -148,7 +148,7 @@
             tsnsrv_ip = [elt["ip_addresses"][0] for elt in output if elt["given_name"] == "basic"][0]
             print(f"tsnsrv seems up, with IP {tsnsrv_ip}")
             machine.wait_until_succeeds(f"tailscale ping {tsnsrv_ip}", timeout=10)
-            machine.succeed(f"curl -f http://{tsnsrv_ip}")
+            print(machine.succeed(f"curl -f http://{tsnsrv_ip}"))
           '';
         };
       };
