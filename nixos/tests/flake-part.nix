@@ -109,12 +109,58 @@
               ${testScript}
             '';
           };
+
+        cmdLineValidation = {
+          testConfig,
+          testScript,
+        }:
+          nixos-lib.runTest {
+            name = "tsnsrv-nixos";
+            hostPkgs = pkgs;
+
+            defaults.services.tsnsrv.enable = true;
+            defaults.services.tsnsrv.defaults.package = config.packages.tsnsrvCmdLineValidator;
+            defaults.services.tsnsrv.defaults.authKeyPath = "/dev/null";
+
+            nodes.machine = {...}: {
+              imports = [self.nixosModules.default testConfig];
+
+              virtualisation.cores = 4;
+              virtualisation.memorySize = 1024;
+            };
+
+            testScript = ''
+              machine.start()
+              ${testScript}
+            '';
+          };
       in {
-        plaintext = e2eTest {
+        cmdline-basic = cmdLineValidation {
+          testConfig = {
+            services.tsnsrv.services.basic.toURL = "http://127.0.0.1:3000";
+          };
+          testScript = ''
+            machine.wait_for_unit("tsnsrv-basic")
+          '';
+        };
+
+        cmdline-with-custom-certs = cmdLineValidation {
+          testConfig = {
+            services.tsnsrv.services.custom = {
+              toURL = "http://127.0.0.1:3000";
+              certificateFile = "/tmp/cert.pem";
+              certificateKey = "/tmp/key.pem";
+            };
+          };
+          testScript = ''
+            machine.wait_for_unit("tsnsrv-custom")
+          '';
+        };
+
+        e2e-plaintext = e2eTest {
           testConfig = {
             config,
             pkgs,
-            lib,
             ...
           }: {
             systemd.services.tsnsrv-basic = {
@@ -140,7 +186,6 @@
           };
           testScript = ''
             import json
-
             machine.wait_until_succeeds("headscale nodes list -o json-line")
 
             # We don't have magic DNS in this setup, so let's figure out the IP from the node list:
