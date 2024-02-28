@@ -10,6 +10,7 @@
       imports = [
         inputs.devshell.flakeModule
         inputs.flake-parts.flakeModules.easyOverlay
+        ./nixos/tests/flake-part.nix
       ];
       systems = [
         "x86_64-darwin"
@@ -123,61 +124,6 @@
           };
         };
         formatter = pkgs.alejandra;
-
-        checks = let
-          nixos-lib = import "${nixpkgs}/nixos/lib" {};
-        in
-          if ! pkgs.lib.hasSuffix "linux" system
-          then {}
-          else let
-            cmdLineValidation = {
-              testConfig,
-              testScript,
-            }:
-              nixos-lib.runTest {
-                name = "tsnsrv-nixos";
-                hostPkgs = pkgs;
-
-                defaults.services.tsnsrv.enable = true;
-                defaults.services.tsnsrv.defaults.package = config.packages.tsnsrvCmdLineValidator;
-                defaults.services.tsnsrv.defaults.authKeyPath = "/dev/null";
-
-                nodes.machine = {...}:
-                  {
-                    imports = [(import ./nixos {flake = self;})];
-
-                    virtualisation.cores = 4;
-                    virtualisation.memorySize = 1024;
-                  }
-                  // testConfig;
-
-                testScript = ''
-                  machine.start()
-                  ${testScript}
-                '';
-              };
-          in {
-            nixos-basic = cmdLineValidation {
-              testConfig = {
-                services.tsnsrv.services.basic.toURL = "http://127.0.0.1:3000";
-              };
-              testScript = ''
-                machine.wait_for_unit("tsnsrv-basic")
-              '';
-            };
-            nixos-with-custom-certs = cmdLineValidation {
-              testConfig = {
-                services.tsnsrv.services.custom = {
-                  toURL = "http://127.0.0.1:3000";
-                  certificateFile = "/tmp/cert.pem";
-                  certificateKey = "/tmp/key.pem";
-                };
-              };
-              testScript = ''
-                machine.wait_for_unit("tsnsrv-custom")
-              '';
-            };
-          };
 
         devshells.default = {
           commands = [
