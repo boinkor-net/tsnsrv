@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/peterbourgon/ff/v3 v3.4.0
 	github.com/prometheus/client_golang v1.19.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
 	tailscale.com v1.60.1
 )
