@@ -16,3 +16,4 @@ linters:
     - unused
   disable:
     - depguard
+    - perfsprint
