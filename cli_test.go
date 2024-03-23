@@ -24,11 +24,14 @@ func TestFromArgs(t *testing.T) {
 		{"funnel", []string{"-name", "foo", "-funnel=true", "http://example.com"}, true},
 		{"funnelOnly", []string{"-name", "foo", "-funnel=true", "-funnelOnly", "http://example.com"}, true},
 		{"ephemeral", []string{"-name", "foo", "-ephemeral=true", "http://example.com"}, true},
+		{"local", []string{"-name", "foo", "-listenLocally=true", "-plaintext=true", "http://example.com"}, true},
 
 		// Expected to fail:
 		{"no args", []string{}, false},
 		{"both addrs", []string{"-name", "foo", "-upstreamTCPAddr=127.0.0.1:80", "-upstreamUnixAddr=/tmp/foo.sock", "http://example.com"}, false},
 		{"plaintext on funnel", []string{"-name", "foo", "-plaintext=true", "-funnel", "http://example.com"}, false},
+		{"local on funnel", []string{"-name", "foo", "-listenLocally=true", "-funnel", "http://example.com"}, false},
+		{"local sans plaintext", []string{"-name", "foo", "-listenLocally=true", "http://example.com"}, false},
 		{"invalid funnelOnly", []string{"-name", "foo", "-funnelOnly", "http://example.com"}, false},
 		{"invalid destination URL", []string{"-name", "foo", "::--example.com"}, false},
 	} {

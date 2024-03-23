@@ -66,6 +66,7 @@ type TailnetSrv struct {
 	Ephemeral                         bool
 	Funnel, FunnelOnly                bool
 	ListenAddr                        string
+	ListenLocally                     bool
 	certificateFile                   string
 	keyFile                           string
 	Name                              string
@@ -105,6 +106,7 @@ func TailnetSrvFromArgs(args []string) (*ValidTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.Funnel, "funnel", false, "Expose a funnel service.")
 	fs.BoolVar(&s.FunnelOnly, "funnelOnly", false, "Expose a funnel service only (not exposed on the tailnet).")
 	fs.StringVar(&s.ListenAddr, "listenAddr", ":443", "Address to listen on; note only :443, :8443 and :10000 are supported with -funnel.")
+	fs.BoolVar(&s.ListenLocally, "listenLocally", false, "Listen on a local (i.e. non-tailscale network) interface.")
 	fs.StringVar(&s.certificateFile, "certificateFile", "", "Custom certificate file to use for TLS listening instead of Tailscale's builtin way.")
 	fs.StringVar(&s.keyFile, "keyFile", "", "Custom key file to use for TLS listening instead of Tailscale's builtin way.")
 	fs.StringVar(&s.Name, "name", "", "Name of this service")
@@ -146,6 +148,7 @@ var errNoPlaintextWithCustomCert = errors.New("can not serve plaintext when usin
 var errOnlyOneAddrType = errors.New("can only proxy to one address at a time, pass either -upstreamUnixAddr or -upstreamTCPAddr")
 var errFunnelRequired = errors.New("-funnel is required if -funnelOnly is set")
 var errNoDestURL = errors.New("tsnsrv requires a destination URL")
+var errListenLocallyConflict = errors.New("-listenLocally conflicts with -funnel but requires -plaintext")
 
 func (s *TailnetSrv) validate(args []string) (*ValidTailnetSrv, error) {
 	var errs []error
@@ -166,6 +169,9 @@ func (s *TailnetSrv) validate(args []string) (*ValidTailnetSrv, error) {
 	}
 	if !s.Funnel && s.FunnelOnly {
 		errs = append(errs, errFunnelRequired)
+	}
+	if (!s.ServePlaintext || s.Funnel) && s.ListenLocally {
+		errs = append(errs, errListenLocallyConflict)
 	}
 
 	if len(args) != 1 {
@@ -270,6 +276,7 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 		"name", s.Name,
 		"tailscaleIPs", status.TailscaleIPs,
 		"listenAddr", s.ListenAddr,
+		"listenLocally", s.ListenLocally,
 		"prexifes", s.AllowedPrefixes,
 		"destURL", s.DestURL,
 		"plaintext", s.ServePlaintext,
@@ -292,6 +299,8 @@ func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
 	var l net.Listener
 	var err error
 	switch {
+	case s.ListenLocally:
+		l, err = net.Listen("tcp", s.ListenAddr)
 	case s.Funnel:
 		opts := []tsnet.FunnelOption{}
 		if s.FunnelOnly {
