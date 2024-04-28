@@ -238,7 +238,7 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 	}
 	if s.UpstreamTCPAddr != "" {
 		dialOrig := dial
-		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+		dial = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			conn, err := dialOrig(ctx, "tcp", s.UpstreamTCPAddr)
 			if err != nil {
 				return nil, fmt.Errorf("connecting to tcp %v: %w", s.UpstreamTCPAddr, err)
@@ -246,7 +246,7 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 			return conn, nil
 		}
 	} else if s.UpstreamUnixAddr != "" {
-		dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+		dial = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			d := net.Dialer{}
 			conn, err := d.DialContext(ctx, "unix", s.UpstreamUnixAddr)
 			if err != nil {
