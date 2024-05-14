@@ -104,9 +104,12 @@
             };
 
             testScript = ''
-              machine.start()
-              machine.wait_for_unit("tailscaled.service", timeout=30)
-              machine.succeed("tailscale-up-for-tests", timeout=30)
+              def test_script_common():
+                  machine.start()
+                  machine.wait_for_unit("tailscaled.service", timeout=30)
+                  machine.succeed("tailscale-up-for-tests", timeout=30)
+
+              test_script_common()
               ${testScript}
             '';
           };
@@ -186,15 +189,27 @@
             };
           };
           testScript = ''
+            import time
             import json
-            machine.wait_until_succeeds("headscale nodes list -o json-line")
 
-            # We don't have magic DNS in this setup, so let's figure out the IP from the node list:
-            output = json.loads(machine.succeed("headscale nodes list -o json-line"))
-            tsnsrv_ip = [elt["ip_addresses"][0] for elt in output if elt["given_name"] == "basic"][0]
-            print(f"tsnsrv seems up, with IP {tsnsrv_ip}")
-            machine.wait_until_succeeds(f"tailscale ping {tsnsrv_ip}", timeout=30)
-            print(machine.succeed(f"curl -f http://{tsnsrv_ip}"))
+            def wait_for_tsnsrv_up():
+                "Poll until tsnsrv appears in the list of hosts, then return its IP."
+                while True:
+                    output = json.loads(machine.succeed("headscale nodes list -o json-line"))
+                    basic_entry = [elt["ip_addresses"][0] for elt in output if elt["given_name"] == "basic"]
+                    if len(basic_entry) == 1:
+                        return basic_entry[0]
+                    time.sleep(1)
+
+            def test_script_e2e():
+                machine.wait_until_succeeds("headscale nodes list -o json-line")
+
+                # We don't have magic DNS in this setup, so let's figure out the IP from the node list:
+                tsnsrv_ip = wait_for_tsnsrv_up()
+                print(f"tsnsrv seems up, with IP {tsnsrv_ip}")
+                machine.wait_until_succeeds(f"tailscale ping {tsnsrv_ip}", timeout=30)
+                print(machine.succeed(f"curl -f http://{tsnsrv_ip}"))
+            test_script_e2e()
           '';
         };
       };
