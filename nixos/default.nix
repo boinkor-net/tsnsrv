@@ -145,6 +145,12 @@
         default = defaults.tsnetVerbose;
       };
 
+      upstreamAllowInsecureCiphers = mkOption {
+        description = "Whether to allow the upstream to have only ciphersuites that don't offer Perfect Forward Secrecy. If a connection attempt to an upstream returns the error `remote error: tls: handshake failure`, try setting this to true.";
+        type = types.bool;
+        default = defaults.upstreamAllowInsecureCiphers;
+      };
+
       extraArgs = mkOption {
         description = "Extra arguments to pass to this tsnsrv process.";
         type = types.listOf types.str;
@@ -177,6 +183,7 @@
       "-suppressTailnetDialer=${lib.boolToString service.suppressTailnetDialer}"
       "-readHeaderTimeout=${readHeaderTimeout}"
       "-tsnetVerbose=${lib.boolToString service.tsnetVerbose}"
+      "-upstreamAllowInsecureCiphers=${lib.boolToString service.upstreamAllowInsecureCiphers}"
     ]
     ++ lib.optionals (service.whoisTimeout != null) ["-whoisTimeout" service.whoisTimeout]
     ++ lib.optionals (service.upstreamUnixAddr != null) ["-upstreamUnixAddr" service.upstreamUnixAddr]
@@ -259,6 +266,12 @@ in {
 
       tsnetVerbose = mkOption {
         description = "Whether to log verbosely from tsnet. Can be useful for seeing first-time authentication URLs.";
+        type = types.bool;
+        default = false;
+      };
+
+      upstreamAllowInsecureCiphers = mkOption {
+        description = "Whether to require the upstream to support Perfect Forward Secrecy cipher suites. If a connection attempt to an upstream returns the error `remote error: tls: handshake failure`, try setting this to true.";
         type = types.bool;
         default = false;
       };
