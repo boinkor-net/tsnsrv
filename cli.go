@@ -84,6 +84,7 @@ type TailnetSrv struct {
 	SuppressTailnetDialer             bool
 	ReadHeaderTimeout                 time.Duration
 	TsnetVerbose                      bool
+	UpstreamAllowInsecureCiphers      bool
 }
 
 // ValidTailnetSrv is a TailnetSrv that has been constructed from validated CLI arguments.
@@ -123,6 +124,7 @@ func TailnetSrvFromArgs(args []string) (*ValidTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.SuppressTailnetDialer, "suppressTailnetDialer", false, "Whether to use the stdlib net.Dialer instead of a tailnet-enabled one")
 	fs.DurationVar(&s.ReadHeaderTimeout, "readHeaderTimeout", 0, "Amount of time to allow for reading HTTP request headers. 0 will disable the timeout but expose the service to the slowloris attack.")
 	fs.BoolVar(&s.TsnetVerbose, "tsnetVerbose", false, "Whether to output tsnet logs.")
+	fs.BoolVar(&s.UpstreamAllowInsecureCiphers, "upstreamAllowInsecureCiphers", false, "Don't require Perfect Forward Secrecy from the upstream https server.")
 
 	root := &ffcli.Command{
 		ShortUsage: fmt.Sprintf("%s -name <serviceName> [flags] <toURL>", path.Base(args[0])),
@@ -256,8 +258,16 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 		}
 	}
 	transport := &http.Transport{DialContext: dial}
+	transport.TLSClientConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
 	if s.InsecureHTTPS {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec This is explicitly requested by the user
+		transport.TLSClientConfig.InsecureSkipVerify = true // #nosec This is explicitly requested by the user
+	}
+	if s.UpstreamAllowInsecureCiphers {
+		for _, suite := range append(tls.CipherSuites(), tls.InsecureCipherSuites()...) {
+			transport.TLSClientConfig.CipherSuites = append(transport.TLSClientConfig.CipherSuites, suite.ID)
+		}
 	}
 	mux := s.mux(transport)
 
