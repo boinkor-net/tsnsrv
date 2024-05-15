@@ -7,7 +7,7 @@ require (
 	github.com/prometheus/client_golang v1.19.1
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
-	tailscale.com v1.66.1
+	tailscale.com v1.66.3
 )
 
 require (
