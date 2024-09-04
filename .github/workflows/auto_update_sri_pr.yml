@@ -50,7 +50,7 @@ jobs:
           file_pattern: "*.sri"
 
       - name: File pull request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         if: github.event_name != 'workflow_dispatch' || !github.event.inputs.push_change
         with:
           token: ${{ steps.generate-token.outputs.token }}
