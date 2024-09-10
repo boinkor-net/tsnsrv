@@ -29,7 +29,7 @@ jobs:
           private_key: ${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{steps.generate_token.outputs.token}}
           commit-message: "Update flake.lock"
