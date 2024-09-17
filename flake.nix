@@ -9,6 +9,7 @@
       imports =
         [
           inputs.flake-parts.flakeModules.easyOverlay
+          inputs.generate-go-sri.flakeModules.default
           ./nixos/tests/flake-part.nix
         ]
         ++ (
@@ -34,7 +35,7 @@
             pname = builtins.baseNameOf subPackage;
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
-            src = with p; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
+            src = lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
             subPackages = [subPackage];
             ldflags = ["-s" "-w"];
             meta.mainProgram = builtins.baseNameOf subPackage;
@@ -59,6 +60,8 @@
             inherit (config.packages) tsnsrv tsnsrvOciImage;
           };
 
+          go-sri-hashes.tsnsrv = {};
+
           packages = {
             default = config.packages.tsnsrv;
             tsnsrv = tsnsrvPkg pkgs "cmd/tsnsrv";
@@ -69,35 +72,6 @@
 
             # "cross-platform" build, mainly to support building on github actions (but also on macOS with apple silicon):
             tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-multiplatform.dockerTools.buildLayeredImage (imageArgs pkgs.pkgsCross.aarch64-multiplatform);
-
-            # To provide a smoother dev experience:
-            regenSRI = let
-              nardump = pkgs.buildGoModule rec {
-                pname = "nardump";
-                version = "1.38.4";
-                src = pkgs.fetchFromGitHub {
-                  owner = "tailscale";
-                  repo = "tailscale";
-                  rev = "v${version}";
-                  sha256 = "sha256-HjN8VzysxQvx5spXgbgbItH3y1bLbfHO+udNQMuyhAk=";
-                };
-                vendorHash = "sha256-LIvaxSo+4LuHUk8DIZ27IaRQwaDnjW6Jwm5AEc/V95A=";
-
-                subPackages = ["cmd/nardump"];
-              };
-            in
-              pkgs.writeShellApplication {
-                name = "regenSRI";
-                text = ''
-                  set -eu -o pipefail
-
-                  src="$(pwd)"
-                  temp="$(mktemp -d)"
-                  trap 'rm -rf "$temp"' EXIT
-                  go mod vendor -o "$temp"
-                  ${nardump}/bin/nardump -sri "$temp" >"$src/tsnsrv.sri"
-                '';
-              };
           };
 
           apps = {
@@ -137,14 +111,13 @@
                 name = "regenSRI";
                 category = "dev";
                 help = "Regenerate tsnsrv.sri in case the module SRI hash should change";
-                command = "${config.packages.regenSRI}/bin/regenSRI";
+                command = "${config.apps.generate-sri-tsnsrv.program}";
               }
             ];
             packages = [
-              pkgs.go_1_22
+              pkgs.go_1_23
               pkgs.gopls
-              (pkgs.golangci-lint.override
-                {buildGoModule = args: (pkgs.buildGo122Module args);})
+              pkgs.golangci-lint
             ];
           };
         };
@@ -166,5 +139,6 @@
       url = "github:mirkolenz/flocken/v1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    generate-go-sri.url = "github:antifuchs/generate-go-sri";
   };
 }
