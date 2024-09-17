@@ -2,21 +2,14 @@
   outputs = inputs @ {
     self,
     flake-parts,
-    flocken,
     ...
   }:
     flake-parts.lib.mkFlake {inherit inputs;} {
-      imports =
-        [
-          inputs.flake-parts.flakeModules.easyOverlay
-          inputs.generate-go-sri.flakeModules.default
-          ./nixos/tests/flake-part.nix
-        ]
-        ++ (
-          if (inputs.devshell ? flakeModule)
-          then [inputs.devshell.flakeModule]
-          else []
-        );
+      imports = [
+        inputs.flake-parts.flakeModules.easyOverlay
+        inputs.flake-parts.flakeModules.partitions
+        ./nixos/tests/flake-part.nix
+      ];
       systems = [
         "x86_64-darwin"
         "x86_64-linux"
@@ -54,91 +47,47 @@
 
           config.EntryPoint = ["/bin/tsnsrv"];
         };
-      in
-        {
-          overlayAttrs = {
-            inherit (config.packages) tsnsrv tsnsrvOciImage;
-          };
+      in {
+        overlayAttrs = {
+          inherit (config.packages) tsnsrv tsnsrvOciImage;
+        };
+        packages = {
+          default = config.packages.tsnsrv;
+          tsnsrv = tsnsrvPkg pkgs "cmd/tsnsrv";
+          tsnsrvCmdLineValidator = tsnsrvPkg pkgs "cmd/tsnsrvCmdLineValidator";
 
-          go-sri-hashes.tsnsrv = {};
+          # This platform's "natively" built docker image:
+          tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
 
-          packages = {
-            default = config.packages.tsnsrv;
-            tsnsrv = tsnsrvPkg pkgs "cmd/tsnsrv";
-            tsnsrvCmdLineValidator = tsnsrvPkg pkgs "cmd/tsnsrvCmdLineValidator";
-
-            # This platform's "natively" built docker image:
-            tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
-
-            # "cross-platform" build, mainly to support building on github actions (but also on macOS with apple silicon):
-            tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-multiplatform.dockerTools.buildLayeredImage (imageArgs pkgs.pkgsCross.aarch64-multiplatform);
-          };
-
-          apps = {
-            default = config.apps.tsnsrv;
-            tsnsrv.program = config.packages.tsnsrv;
-            streamTsnsrvOciImage.program = "${pkgs.dockerTools.streamLayeredImage imageArgs}";
-
-            pushImagesToGhcr = {
-              program = flocken.legacyPackages.${system}.mkDockerManifest (let
-                ref = builtins.getEnv "GITHUB_REF_NAME";
-                branch =
-                  if pkgs.lib.hasSuffix "/merge" ref
-                  then "pr-${pkgs.lib.removeSuffix "/merge" ref}"
-                  else ref;
-              in {
-                inherit branch;
-                name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
-                version = builtins.getEnv "VERSION";
-
-                # Here we build the x86_64-linux variants only because
-                # that is what runs on GHA, whence we push the images to
-                # ghcr.
-                images = with self.packages; [
-                  x86_64-linux.tsnsrvOciImage
-                  x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
-                ];
-              });
-              type = "app";
-            };
-          };
-          formatter = pkgs.alejandra;
-        }
-        // lib.optionalAttrs (inputs.devshell ? flakeModule) {
-          devshells.default = {
-            commands = [
-              {
-                name = "regenSRI";
-                category = "dev";
-                help = "Regenerate tsnsrv.sri in case the module SRI hash should change";
-                command = "${config.apps.generate-sri-tsnsrv.program}";
-              }
-            ];
-            packages = [
-              pkgs.go_1_23
-              pkgs.gopls
-              pkgs.golangci-lint
-            ];
-          };
+          # "cross-platform" build, mainly to support building on github actions (but also on macOS with apple silicon):
+          tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-multiplatform.dockerTools.buildLayeredImage (imageArgs pkgs.pkgsCross.aarch64-multiplatform);
         };
 
-      flake.nixosModules = {
-        default = import ./nixos {flake = self;};
+        formatter = pkgs.alejandra;
+      };
+
+      partitionedAttrs = {
+        checks = "dev";
+        devShells = "dev";
+        apps = "dev";
+      };
+      partitions.dev = {
+        extraInputsFlake = ./dev;
+        module = ./dev/flake-part.nix;
+      };
+      flake = {
+        nixosModules = {
+          default = import ./nixos {flake = self;};
+        };
       };
     };
 
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
-    devshell.url = "github:numtide/devshell";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
     };
-    flocken = {
-      url = "github:mirkolenz/flocken/v1";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    generate-go-sri.url = "github:antifuchs/generate-go-sri";
   };
 }
