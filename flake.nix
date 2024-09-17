@@ -2,20 +2,14 @@
   outputs = inputs @ {
     self,
     flake-parts,
-    flocken,
     ...
   }:
     flake-parts.lib.mkFlake {inherit inputs;} {
-      imports =
-        [
-          inputs.flake-parts.flakeModules.easyOverlay
-          ./nixos/tests/flake-part.nix
-        ]
-        ++ (
-          if (inputs.devshell ? flakeModule)
-          then [inputs.devshell.flakeModule]
-          else []
-        );
+      imports = [
+        inputs.flake-parts.flakeModules.easyOverlay
+        inputs.flake-parts.flakeModules.partitions
+        ./nixos/tests/flake-part.nix
+      ];
       systems = [
         "x86_64-darwin"
         "x86_64-linux"
@@ -34,7 +28,7 @@
             pname = builtins.baseNameOf subPackage;
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;
-            src = with p; lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
+            src = lib.sourceFilesBySuffices (lib.sources.cleanSource ./.) [".go" ".mod" ".sum"];
             subPackages = [subPackage];
             ldflags = ["-s" "-w"];
             meta.mainProgram = builtins.baseNameOf subPackage;
@@ -53,118 +47,43 @@
 
           config.EntryPoint = ["/bin/tsnsrv"];
         };
-      in
-        {
-          overlayAttrs = {
-            inherit (config.packages) tsnsrv tsnsrvOciImage;
-          };
+      in {
+        overlayAttrs = {
+          inherit (config.packages) tsnsrv tsnsrvOciImage;
+        };
+        packages = {
+          default = config.packages.tsnsrv;
+          tsnsrv = tsnsrvPkg pkgs "cmd/tsnsrv";
+          tsnsrvCmdLineValidator = tsnsrvPkg pkgs "cmd/tsnsrvCmdLineValidator";
 
-          packages = {
-            default = config.packages.tsnsrv;
-            tsnsrv = tsnsrvPkg pkgs "cmd/tsnsrv";
-            tsnsrvCmdLineValidator = tsnsrvPkg pkgs "cmd/tsnsrvCmdLineValidator";
+          # This platform's "natively" built docker image:
+          tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
 
-            # This platform's "natively" built docker image:
-            tsnsrvOciImage = pkgs.dockerTools.buildLayeredImage (imageArgs pkgs);
-
-            # "cross-platform" build, mainly to support building on github actions (but also on macOS with apple silicon):
-            tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-multiplatform.dockerTools.buildLayeredImage (imageArgs pkgs.pkgsCross.aarch64-multiplatform);
-
-            # To provide a smoother dev experience:
-            regenSRI = let
-              nardump = pkgs.buildGoModule rec {
-                pname = "nardump";
-                version = "1.38.4";
-                src = pkgs.fetchFromGitHub {
-                  owner = "tailscale";
-                  repo = "tailscale";
-                  rev = "v${version}";
-                  sha256 = "sha256-HjN8VzysxQvx5spXgbgbItH3y1bLbfHO+udNQMuyhAk=";
-                };
-                vendorHash = "sha256-LIvaxSo+4LuHUk8DIZ27IaRQwaDnjW6Jwm5AEc/V95A=";
-
-                subPackages = ["cmd/nardump"];
-              };
-            in
-              pkgs.writeShellApplication {
-                name = "regenSRI";
-                text = ''
-                  set -eu -o pipefail
-
-                  src="$(pwd)"
-                  temp="$(mktemp -d)"
-                  trap 'rm -rf "$temp"' EXIT
-                  go mod vendor -o "$temp"
-                  ${nardump}/bin/nardump -sri "$temp" >"$src/tsnsrv.sri"
-                '';
-              };
-          };
-
-          apps = {
-            default = config.apps.tsnsrv;
-            tsnsrv.program = config.packages.tsnsrv;
-            streamTsnsrvOciImage.program = "${pkgs.dockerTools.streamLayeredImage imageArgs}";
-
-            pushImagesToGhcr = {
-              program = flocken.legacyPackages.${system}.mkDockerManifest (let
-                ref = builtins.getEnv "GITHUB_REF_NAME";
-                branch =
-                  if pkgs.lib.hasSuffix "/merge" ref
-                  then "pr-${pkgs.lib.removeSuffix "/merge" ref}"
-                  else ref;
-              in {
-                inherit branch;
-                name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
-                version = builtins.getEnv "VERSION";
-
-                # Here we build the x86_64-linux variants only because
-                # that is what runs on GHA, whence we push the images to
-                # ghcr.
-                images = with self.packages; [
-                  x86_64-linux.tsnsrvOciImage
-                  x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
-                ];
-              });
-              type = "app";
-            };
-          };
-          formatter = pkgs.alejandra;
-        }
-        // lib.optionalAttrs (inputs.devshell ? flakeModule) {
-          devshells.default = {
-            commands = [
-              {
-                name = "regenSRI";
-                category = "dev";
-                help = "Regenerate tsnsrv.sri in case the module SRI hash should change";
-                command = "${config.packages.regenSRI}/bin/regenSRI";
-              }
-            ];
-            packages = [
-              pkgs.go_1_22
-              pkgs.gopls
-              (pkgs.golangci-lint.override
-                {buildGoModule = args: (pkgs.buildGo122Module args);})
-            ];
-          };
+          # "cross-platform" build, mainly to support building on github actions (but also on macOS with apple silicon):
+          tsnsrvOciImage-cross-aarch64-linux = pkgs.pkgsCross.aarch64-multiplatform.dockerTools.buildLayeredImage (imageArgs pkgs.pkgsCross.aarch64-multiplatform);
         };
 
-      flake.nixosModules = {
-        default = import ./nixos {flake = self;};
+        formatter = pkgs.alejandra;
+      };
+
+      partitionedAttrs = {
+        checks = "dev";
+        devShells = "dev";
+        apps = "dev";
+      };
+      partitions.dev = {
+        extraInputsFlake = ./dev;
+        module = ./dev/flake-part.nix;
+      };
+      flake = {
+        nixosModules = {
+          default = import ./nixos {flake = self;};
+        };
       };
     };
 
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
-    devshell.url = "github:numtide/devshell";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
-    };
-    flocken = {
-      url = "github:mirkolenz/flocken/v1";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 }
