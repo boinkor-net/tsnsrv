@@ -39,7 +39,7 @@
       tsnsrv.program = config.packages.tsnsrv;
 
       pushImagesToGhcr = {
-        program = flocken.legacyPackages.${system}.mkDockerManifest (let
+        program = inputs.flocken.legacyPackages.${system}.mkDockerManifest (let
           ref = builtins.getEnv "GITHUB_REF_NAME";
           branch =
             if pkgs.lib.hasSuffix "/merge" ref
