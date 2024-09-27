@@ -280,7 +280,7 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 		"name", s.Name,
 		"tailscaleIPs", status.TailscaleIPs,
 		"listenAddr", s.ListenAddr,
-		"prexifes", s.AllowedPrefixes,
+		"prefixes", s.AllowedPrefixes,
 		"destURL", s.DestURL,
 		"plaintext", s.ServePlaintext,
 		"funnel", s.Funnel,
