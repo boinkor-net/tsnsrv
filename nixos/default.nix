@@ -376,7 +376,7 @@ in {
                 after = ["network-online.target"];
                 wants = ["network-online.target"];
                 script = ''
-                  exec ${lib.getExe service.package} -stateDir=$STATE_DIRECTORY/tsnet-tsnsrv ${lib.escapeShellArgs (serviceArgs {inherit name service;})}
+                  exec ${lib.getExe service.package} "-stateDir=$STATE_DIRECTORY/tsnet-tsnsrv" ${lib.escapeShellArgs (serviceArgs {inherit name service;})}
                 '';
                 serviceConfig =
                   {
