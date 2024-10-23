@@ -178,7 +178,6 @@
       "-plaintext=${lib.boolToString service.plaintext}"
       "-listenAddr=${service.listenAddr}"
       "-stripPrefix=${lib.boolToString service.stripPrefix}"
-      "-authkeyPath=${service.authKeyPath}"
       "-insecureHTTPS=${lib.boolToString service.insecureHTTPS}"
       "-suppressTailnetDialer=${lib.boolToString service.suppressTailnetDialer}"
       "-readHeaderTimeout=${readHeaderTimeout}"
@@ -376,7 +375,10 @@ in {
                 after = ["network-online.target"];
                 wants = ["network-online.target"];
                 script = ''
-                  exec ${lib.getExe service.package} "-stateDir=$STATE_DIRECTORY/tsnet-tsnsrv" ${lib.escapeShellArgs (serviceArgs {inherit name service;})}
+                  exec ${lib.getExe service.package} \
+                    "-stateDir=$STATE_DIRECTORY/tsnet-tsnsrv" \
+                    "-authkeyPath=$CREDENTIALS_DIRECTORY/authKey" \
+                    ${lib.escapeShellArgs (serviceArgs {inherit name service;})}
                 '';
                 serviceConfig =
                   {
@@ -384,6 +386,9 @@ in {
                     SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
                     StateDirectory = "tsnsrv-${name}";
                     StateDirectoryMode = "0700";
+                    LoadCredential = [
+                      "authKey:${service.authKeyPath}"
+                    ];
                   }
                   // lib.optionalAttrs (service.loginServerUrl != null) {
                     Environment = "TS_URL=${service.loginServerUrl}";
@@ -400,6 +405,7 @@ in {
             inherit name;
             value = let
               serviceName = "${config.virtualisation.oci-containers.backend}-${name}";
+              credentialsDir = "/run/credentials/${serviceName}.service";
             in {
               imageFile = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrvOciImage;
               image = "tsnsrv:latest";
@@ -411,14 +417,14 @@ in {
                 # $STATE_DIRECTORY environment variable in volume specs.
                 "/var/lib/${serviceName}:/state"
 
-                # The tsnet auth key.
-                "${config.virtualisation.oci-sidecars.tsnsrv.authKeyPath}:${config.virtualisation.oci-sidecars.tsnsrv.authKeyPath}"
+                # Same for the service's credentials dir:
+                "${credentialsDir}:${credentialsDir}"
               ];
               extraOptions = [
                 "--network=container:${sidecar.forContainer}"
               ];
               cmd =
-                ["-stateDir=/state"]
+                ["-stateDir=/state" "-authkeyPath=${credentialsDir}/authKey"]
                 ++ (serviceArgs {
                   name =
                     if sidecar.name == null
@@ -443,6 +449,9 @@ in {
                   StateDirectory = serviceName;
                   StateDirectoryMode = "0700";
                   SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ sidecar.service.supplementalGroups;
+                  LoadCredential = [
+                    "authKey:${sidecar.service.authKeyPath}"
+                  ];
                 };
               };
             })
