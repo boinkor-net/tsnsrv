@@ -2,7 +2,7 @@
   pkgs,
   nixos-lib,
   nixosModule,
-  package,
+  validatorPackage,
 }: {
   testConfig,
   testScript,
@@ -12,7 +12,7 @@ nixos-lib.runTest {
   hostPkgs = pkgs;
 
   defaults.services.tsnsrv.enable = true;
-  defaults.services.tsnsrv.defaults.package = package;
+  defaults.services.tsnsrv.defaults.package = validatorPackage;
   defaults.services.tsnsrv.defaults.authKeyPath = "/dev/null";
 
   nodes.machine = {...}: {
