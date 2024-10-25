@@ -423,6 +423,9 @@ in {
               extraOptions = [
                 "--network=container:${sidecar.forContainer}"
               ];
+              environment = lib.optionalAttrs (sidecar.service.loginServerUrl != null) {
+                TS_URL = sidecar.service.loginServerUrl;
+              };
               cmd =
                 ["-stateDir=/state" "-authkeyPath=${credentialsDir}/authKey"]
                 ++ (serviceArgs {
