@@ -43,6 +43,7 @@ in
         enable = true;
         settings = {
           ip_prefixes = ["100.64.0.0/10"];
+          dns.magic_dns = false;
           derp.server = {
             enabled = true;
             region_id = 999;
