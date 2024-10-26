@@ -12,8 +12,6 @@ in
     defaults.services.tsnsrv.enable = true;
     defaults.services.tsnsrv.defaults.tsnetVerbose = true;
 
-    # defaults.services.tsnsrv.defaults.package = config.packages.tsnsrvCmdLineValidator;
-
     nodes.machine = {
       config,
       pkgs,
@@ -82,6 +80,7 @@ in
       };
 
       systemd.services.tsnsrv-basic = {
+        enableStrictShellChecks = true;
         wants = ["generate-tsnsrv-authkey@basic.service"];
         after = ["generate-tsnsrv-authkey@basic.service"];
         unitConfig.Requires = ["generate-tsnsrv-authkey@basic.service"];

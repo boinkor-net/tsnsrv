@@ -11,6 +11,7 @@ in
   helper {
     testConfig = {
       services.tsnsrv.services.basic.toURL = "http://127.0.0.1:3000";
+      systemd.services.tsnsrv-basic.enableStrictShellChecks = true;
     };
     testScript = ''
       machine.wait_for_unit("tsnsrv-basic")

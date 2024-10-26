@@ -85,6 +85,7 @@ in
           };
         };
       };
+      systemd.services.podman-web-server-tsnsrv.enableStrictShellChecks = true;
       networking.firewall.trustedInterfaces = ["podman0"];
 
       # Delay starting the container machinery until we have an authkey:
