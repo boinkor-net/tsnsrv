@@ -12,12 +12,14 @@
         description = "Path to a file containing a tailscale auth key. Make this a secret";
         type = types.path;
         default = defaults.authKeyPath;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authKeyPath";
       };
 
       ephemeral = mkOption {
         description = "Delete the tailnet participant shortly after it goes offline";
         type = types.bool;
         default = defaults.ephemeral;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.ephemeral";
       };
 
       funnel = mkOption {
@@ -36,11 +38,13 @@
         description = "Address to listen on";
         type = types.str;
         default = defaults.listenAddr;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.listenAddr";
       };
 
       loginServerUrl = lib.mkOption {
         description = "Login server URL to use. If unset, defaults to the official tailscale service.";
-        default = config.services.tsnsrv.defaults.loginServerUrl;
+        default = defaults.loginServerUrl;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.loginServerUrl";
         type = with types; nullOr str;
       };
 
@@ -60,18 +64,21 @@
         description = "Custom certificate file to use for TLS listening instead of Tailscale's builtin way";
         type = with types; nullOr path;
         default = defaults.certificateFile;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.certificateFile";
       };
 
       certificateKey = mkOption {
         description = "Custom key file to use for TLS listening instead of Tailscale's builtin way.";
         type = with types; nullOr path;
         default = defaults.certificateKey;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.certificateKey";
       };
 
       acmeHost = mkOption {
-        description = "Populate certificateFile and certificateKey option from this certifcate name from security.acme module.";
+        description = "Populate certificateFile and certificateKey option from this certificate name from security.acme module.";
         type = with types; nullOr str;
         default = defaults.acmeHost;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.acmeHost";
       };
 
       upstreamUnixAddr = mkOption {
@@ -131,24 +138,28 @@
         description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
         type = types.listOf types.str;
         default = defaults.supplementalGroups;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.supplementalGroups";
       };
 
       timeout = mkOption {
         description = "Maximum amount of time that authenticating to the tailscale API may take";
         type = with types; nullOr str;
         default = defaults.timeout;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.timeout";
       };
 
       tsnetVerbose = mkOption {
         description = "Whether to log verbosely from tsnet. Can be useful for seeing first-time authentication URLs.";
         type = types.bool;
         default = defaults.tsnetVerbose;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.tsnetVerbose";
       };
 
       upstreamAllowInsecureCiphers = mkOption {
         description = "Whether to allow the upstream to have only ciphersuites that don't offer Perfect Forward Secrecy. If a connection attempt to an upstream returns the error `remote error: tls: handshake failure`, try setting this to true.";
         type = types.bool;
         default = defaults.upstreamAllowInsecureCiphers;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.upstreamAllowInsecureCiphers";
       };
 
       extraArgs = mkOption {
@@ -290,6 +301,7 @@ in {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
         type = types.path;
         default = config.services.tsnsrv.defaults.authKeyPath;
+        defaultText = lib.literalExpression "config.services.tsnsrv.defaults.authKeyPath";
       };
 
       containers = mkOption {
