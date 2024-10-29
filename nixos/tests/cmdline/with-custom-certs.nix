@@ -15,6 +15,7 @@ in
         certificateFile = "/tmp/cert.pem";
         certificateKey = "/tmp/key.pem";
       };
+      systemd.services.tsnsrv-custom.enableStrictShellChecks = true;
     };
     testScript = ''
       machine.wait_for_unit("tsnsrv-custom")

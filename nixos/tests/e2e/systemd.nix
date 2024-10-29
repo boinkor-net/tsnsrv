@@ -12,8 +12,6 @@ in
     defaults.services.tsnsrv.enable = true;
     defaults.services.tsnsrv.defaults.tsnetVerbose = true;
 
-    # defaults.services.tsnsrv.defaults.package = config.packages.tsnsrvCmdLineValidator;
-
     nodes.machine = {
       config,
       pkgs,
@@ -43,6 +41,7 @@ in
         enable = true;
         settings = {
           ip_prefixes = ["100.64.0.0/10"];
+          dns.magic_dns = false;
           derp.server = {
             enabled = true;
             region_id = 999;
@@ -81,6 +80,7 @@ in
       };
 
       systemd.services.tsnsrv-basic = {
+        enableStrictShellChecks = true;
         wants = ["generate-tsnsrv-authkey@basic.service"];
         after = ["generate-tsnsrv-authkey@basic.service"];
         unitConfig.Requires = ["generate-tsnsrv-authkey@basic.service"];

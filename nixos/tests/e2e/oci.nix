@@ -16,6 +16,7 @@ in
         address = "[::]";
         settings = {
           ip_prefixes = ["100.64.0.0/10"];
+          dns.magic_dns = false;
           derp.server = {
             enabled = true;
             region_id = 999;
@@ -84,6 +85,7 @@ in
           };
         };
       };
+      systemd.services.podman-web-server-tsnsrv.enableStrictShellChecks = true;
       networking.firewall.trustedInterfaces = ["podman0"];
 
       # Delay starting the container machinery until we have an authkey:
