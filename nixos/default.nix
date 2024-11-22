@@ -6,7 +6,7 @@
 }: let
   serviceSubmodule = with lib; let
     inherit (config.services.tsnsrv) defaults;
-  in {
+  in ({config, ...}: {
     options = {
       authKeyPath = mkOption {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
@@ -50,7 +50,7 @@
 
       package = mkOption {
         description = "Package to use for this tsnsrv service.";
-        default = config.services.tsnsrv.defaults.package;
+        default = defaults.package;
         type = types.package;
       };
 
@@ -129,9 +129,19 @@
         default = null;
       };
 
+      port = mkOption {
+        description = "Port to listen for HTTP requests on";
+        type with types; nullOr port;
+        default = null;
+      };
+
       toURL = mkOption {
         description = "URL to forward HTTP requests to";
         type = types.str;
+        default =
+          if defaults.url != null && config.port != null
+          then "${defaults.url}:${builtins.toString config.port}"
+          else "";
       };
 
       supplementalGroups = mkOption {
@@ -168,7 +178,7 @@
         default = [];
       };
     };
-  };
+  });
 
   serviceArgs = {
     name,
@@ -284,6 +294,12 @@ in {
         description = "Whether to require the upstream to support Perfect Forward Secrecy cipher suites. If a connection attempt to an upstream returns the error `remote error: tls: handshake failure`, try setting this to true.";
         type = types.bool;
         default = false;
+      };
+
+      url = mkOption {
+          description = "Default URL to forward requests to";
+          type = with types; nullOr str;
+          default = null;
       };
     };
 
