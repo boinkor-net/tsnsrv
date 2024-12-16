@@ -129,19 +129,32 @@
         default = null;
       };
 
-      port = mkOption {
-        description = "Port to listen for HTTP requests on";
-        type with types; nullOr port;
-        default = null;
+      urlParts = {
+        host = mkOption {
+          description = "";
+          type = with types; nullOr str;
+          default = defaults.urlParts.host;
+        };
+
+        port = mkOption {
+          description = "The port to forward requests to";
+          type = with types; nullOr port;
+        };
+
+        protocol = mkOption {
+          description = "";
+          type = with types; nullOr str;
+          default = defaults.urlParts.protocol;
+        };
       };
 
       toURL = mkOption {
         description = "URL to forward HTTP requests to";
         type = types.str;
         default =
-          if defaults.url != null && config.port != null
-          then "${defaults.url}:${builtins.toString config.port}"
-          else "";
+          if services.urlParts != null
+          then "${config.urlParts.protocol}://${config.urlParts.host}:${builtins.toString config.urlParts.port}"
+          else null;
       };
 
       supplementalGroups = mkOption {
@@ -296,10 +309,17 @@ in {
         default = false;
       };
 
-      url = mkOption {
-          description = "Default URL to forward requests to";
+      urlParts = {
+        host = mkOption {
+          description = "Host to forward requests to";
           type = with types; nullOr str;
-          default = null;
+        };
+
+        protocol = mkOption {
+          description = "Protocol to forward requests to";
+          type = with types; nullOr str;
+          default = "http";
+        };
       };
     };
 
