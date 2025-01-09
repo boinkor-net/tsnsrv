@@ -392,6 +392,7 @@ in {
                     "-authkeyPath=$CREDENTIALS_DIRECTORY/authKey" \
                     ${lib.escapeShellArgs (serviceArgs {inherit name service;})}
                 '';
+                stopIfChanged = false;
                 serviceConfig =
                   {
                     DynamicUser = true;
