@@ -141,6 +141,13 @@
         defaultText = lib.literalExpression "config.services.tsnsrv.defaults.supplementalGroups";
       };
 
+      tags = mkOption {
+        description = "Tags for minting an auth key from an OAuth2 client. Must be prefixed with `tag:`";
+        type = types.listOf (types.strMatching "^tag:.*");
+        default = defaults.tags;
+        example = ["tag:foo" "tag:bar"];
+      };
+
       timeout = mkOption {
         description = "Maximum amount of time that authenticating to the tailscale API may take";
         type = with types; nullOr str;
@@ -202,6 +209,7 @@
       "-keyFile=${service.certificateKey}"
     ]
     ++ lib.optionals (service.timeout != null) ["-timeout=${service.timeout}"]
+    ++ map (t: "-tag=${t}") service.tags
     ++ map (p: "-prefix=${p}") service.prefixes
     ++ map (h: "-upstreamHeader=${h}") (lib.mapAttrsToList (name: service: "${name}: ${service}") service.upstreamHeaders)
     ++ service.extraArgs
@@ -266,6 +274,13 @@ in {
         description = "List of groups to run the service under (in addition to the 'tsnsrv' group)";
         type = types.listOf types.str;
         default = [];
+      };
+
+      tags = mkOption {
+        description = "Tags for minting an auth key from an OAuth2 client. Must be prefixed with `tag:`";
+        type = types.listOf (types.strMatching "^tag:.*");
+        default = [];
+        example = ["tag:foo" "tag:bar"];
       };
 
       timeout = mkOption {
