@@ -23,7 +23,7 @@ then run `tsnsrv` and have that expose the service on your tailnet
 
 Almost certainly:
 
-* I have not thought much request forgery.
+* I have not thought much about request forgery.
 
 * You're by definition forwarding requests of one degree of
   trustedness to a thing of another degree of trustedness.
@@ -86,3 +86,31 @@ following headers:
 * `X-Tailscale-Node-Name` - name of the node originating the request
 * `X-Tailscale-Node-Caps` - node device capabilities
 * `X-Tailscale-Node-Tags` - ACL tags on the origin node
+
+### Using OAuth clients instead of tailscale API keys
+
+If you intend to deploy several tsnsrv instances to a server over a
+long time (and intend to bring up more services as the months go on),
+you might worry that the maximum tailscale Auth key lifetime might be
+a problem. It is, but it is less so than you might think:
+
+* Each tsnsrv service stores its "per-host" key in the state
+  directory, and doesn't expire, but:
+* the key used to create *new* tsnsrv instances has an expiry date -
+  so after at most 3 months, you will have to rotate the key (and
+  deploys fail, etc).
+
+There is a remedy to the issue of the expiring "new service
+registration" issue: [Tailscale OAuth
+clients](https://tailscale.com/kb/1215/oauth-clients). These only work
+with the cloud tailscale (not with headscale, AIUI), and they have
+some requirements:
+
+* You need an OAuth client minted with `auth_key` permissions,
+* the client needs to specify *exactly* the tags you want to run the service under, and
+* you need to specify exactly those tags on tsnsrv's commandline with the `-tag` flag.
+
+Once you have a oauth client (and a command line) with these
+requirements, all you need to do is to use the client _secret_ (the
+client ID is irrelevant for us) as the tailscale auth key and tsnsrv
+will do the rest.
