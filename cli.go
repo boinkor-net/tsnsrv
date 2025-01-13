@@ -1,6 +1,7 @@
 package tsnsrv
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/exp/slog"
+	"golang.org/x/oauth2/clientcredentials"
 	"tailscale.com/client/tailscale"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
@@ -61,6 +63,22 @@ func (h *headers) Set(value string) error {
 	return nil
 }
 
+type tags []string
+
+func (t *tags) String() string {
+	return strings.Join(*t, ", ")
+}
+
+var errTagFormat = errors.New("tags must start with 'tag:'")
+
+func (t *tags) Set(value string) error {
+	if !strings.HasPrefix(value, "tag:") {
+		return errTagFormat
+	}
+	*t = append(*t, value)
+	return nil
+}
+
 type TailnetSrv struct {
 	UpstreamTCPAddr, UpstreamUnixAddr string
 	Ephemeral                         bool
@@ -76,6 +94,7 @@ type TailnetSrv struct {
 	StripPrefix                       bool
 	StateDir                          string
 	AuthkeyPath                       string
+	Tags                              tags
 	InsecureHTTPS                     bool
 	WhoisTimeout                      time.Duration
 	SuppressWhois                     bool
@@ -116,6 +135,7 @@ func TailnetSrvFromArgs(args []string) (*ValidTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.StripPrefix, "stripPrefix", true, "Strip prefixes that matched; best set to false if allowing multiple prefixes")
 	fs.StringVar(&s.StateDir, "stateDir", os.Getenv("TS_STATE_DIR"), "Directory containing the persistent tailscale status files. Can also be set by $TS_STATE_DIR; this option takes precedence.")
 	fs.StringVar(&s.AuthkeyPath, "authkeyPath", "", "File containing a tailscale auth key. Key is assumed to be in $TS_AUTHKEY in absence of this option.")
+	fs.Var(&s.Tags, "tag", "Tags to advertise to tailscale. Mandatory if using OAuth clients.")
 	fs.BoolVar(&s.InsecureHTTPS, "insecureHTTPS", false, "Disable TLS certificate validation on upstream")
 	fs.DurationVar(&s.WhoisTimeout, "whoisTimeout", 1*time.Second, "Maximum amount of time to spend looking up client identities")
 	fs.BoolVar(&s.SuppressWhois, "suppressWhois", false, "Do not set X-Tailscale-User-* headers in upstream requests")
@@ -185,14 +205,51 @@ func (s *TailnetSrv) validate(args []string) (*ValidTailnetSrv, error) {
 	return &valid, nil
 }
 
-func authkeyFromFile(path string) (string, error) {
+func (s *ValidTailnetSrv) authkeyFromFile(ctx context.Context, path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("opening authkey %#v: %w", path, err)
 	}
 	defer f.Close()
 	key, err := io.ReadAll(f)
-	return strings.TrimSpace(string(key)), err
+	if err != nil {
+		return "", fmt.Errorf("reading authkey %#v: %w", path, err)
+	}
+	trimmed := strings.TrimSpace(string(key))
+	if strings.HasPrefix(trimmed, "tskey-client-") {
+		return s.mintAuthKey(ctx, trimmed)
+	}
+	return trimmed, nil
+}
+
+func (s *ValidTailnetSrv) mintAuthKey(ctx context.Context, authkey string) (string, error) {
+	tailscale.I_Acknowledge_This_API_Is_Unstable = true // needed in order to use API clients.
+
+	baseURL := cmp.Or(os.Getenv("TS_BASE_URL"), "https://api.tailscale.com")
+	tsClient := tailscale.NewClient("-", nil)
+	tsClient.BaseURL = baseURL
+	credentials := clientcredentials.Config{
+		ClientID:     "some-client-id", // ignored
+		ClientSecret: authkey,
+		TokenURL:     tsClient.BaseURL + "/api/v2/oauth/token",
+	}
+
+	tsClient.HTTPClient = credentials.Client(ctx)
+	caps := tailscale.KeyCapabilities{
+		Devices: tailscale.KeyDeviceCapabilities{
+			Create: tailscale.KeyDeviceCreateCapabilities{
+				Reusable:  false,
+				Tags:      s.Tags,
+				Ephemeral: s.Ephemeral,
+			},
+		},
+	}
+
+	authkey, _, err := tsClient.CreateKey(ctx, caps)
+	if err != nil {
+		return "", fmt.Errorf("minting a tailscale pre-authenticated key for tags %v: %w", s.Tags, err)
+	}
+	return authkey, nil
 }
 
 func (s *ValidTailnetSrv) Run(ctx context.Context) error {
@@ -209,7 +266,7 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 	}
 	if s.AuthkeyPath != "" {
 		var err error
-		srv.AuthKey, err = authkeyFromFile(s.AuthkeyPath)
+		srv.AuthKey, err = s.authkeyFromFile(ctx, s.AuthkeyPath)
 		if err != nil {
 			slog.Warn("Could not read authkey from file",
 				"path", s.AuthkeyPath,
@@ -280,6 +337,7 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 		"name", s.Name,
 		"tailscaleIPs", status.TailscaleIPs,
 		"listenAddr", s.ListenAddr,
+		"tags", s.Tags,
 		"prefixes", s.AllowedPrefixes,
 		"destURL", s.DestURL,
 		"plaintext", s.ServePlaintext,
