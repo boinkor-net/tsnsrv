@@ -6,7 +6,7 @@
 }: let
   serviceSubmodule = with lib; let
     inherit (config.services.tsnsrv) defaults;
-  in {
+  in ({config, ...}: {
     options = {
       authKeyPath = mkOption {
         description = "Path to a file containing a tailscale auth key. Make this a secret";
@@ -50,7 +50,7 @@
 
       package = mkOption {
         description = "Package to use for this tsnsrv service.";
-        default = config.services.tsnsrv.defaults.package;
+        default = defaults.package;
         type = types.package;
       };
 
@@ -129,9 +129,32 @@
         default = null;
       };
 
+      urlParts = {
+        host = mkOption {
+          description = "";
+          type = with types; nullOr str;
+          default = defaults.urlParts.host;
+        };
+
+        port = mkOption {
+          description = "The port to forward requests to";
+          type = with types; nullOr port;
+        };
+
+        protocol = mkOption {
+          description = "";
+          type = with types; nullOr str;
+          default = defaults.urlParts.protocol;
+        };
+      };
+
       toURL = mkOption {
         description = "URL to forward HTTP requests to";
         type = types.str;
+        default =
+          if services.urlParts != null
+          then "${config.urlParts.protocol}://${config.urlParts.host}:${builtins.toString config.urlParts.port}"
+          else null;
       };
 
       supplementalGroups = mkOption {
@@ -175,7 +198,7 @@
         default = [];
       };
     };
-  };
+  });
 
   serviceArgs = {
     name,
@@ -299,6 +322,19 @@ in {
         description = "Whether to require the upstream to support Perfect Forward Secrecy cipher suites. If a connection attempt to an upstream returns the error `remote error: tls: handshake failure`, try setting this to true.";
         type = types.bool;
         default = false;
+      };
+
+      urlParts = {
+        host = mkOption {
+          description = "Host to forward requests to";
+          type = with types; nullOr str;
+        };
+
+        protocol = mkOption {
+          description = "Protocol to forward requests to";
+          type = with types; nullOr str;
+          default = "http";
+        };
       };
     };
 
