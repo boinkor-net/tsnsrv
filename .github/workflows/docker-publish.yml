@@ -56,3 +56,5 @@ jobs:
       - name: Push to ghcr
         if: steps.docker_pushable.outputs.should == 'true'
         run: nix run .#pushImagesToGhcr --impure
+        env:
+          GH_TOKEN: ${{ github.token }}

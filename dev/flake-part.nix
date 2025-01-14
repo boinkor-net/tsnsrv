@@ -49,6 +49,10 @@
           inherit branch;
           name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
           version = builtins.getEnv "VERSION";
+          github = {
+            enable = true;
+            token = "$GH_TOKEN";
+          };
 
           # Here we build the x86_64-linux variants only because
           # that is what runs on GHA, whence we push the images to

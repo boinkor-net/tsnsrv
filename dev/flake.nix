@@ -3,7 +3,7 @@
   inputs = {
     devshell.url = "github:numtide/devshell";
     generate-go-sri.url = "github:antifuchs/generate-go-sri";
-    flocken.url = "github:mirkolenz/flocken/v1";
+    flocken.url = "github:mirkolenz/flocken/v2";
   };
   outputs = {...}: {};
 }
