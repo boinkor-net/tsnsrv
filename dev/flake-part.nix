@@ -44,19 +44,24 @@
             branch = true;
             version = true;
           };
-         github = {
-           enable = true;
-           token = "$GH_TOKEN";
-         };
+          branch = let ref = builtins.getEnv "GITHUB_REF_NAME"; in
+            if pkgs.lib.hasSuffix "/merge" ref
+            then "pr-${pkgs.lib.removeSuffix "/merge" ref}"
+            else ref;
 
-         # Here we build the x86_64-linux variants only because
-         # that is what runs on GHA, whence we push the images to
-         # ghcr.
-         images = with self.packages; [
-           x86_64-linux.tsnsrvOciImage
-           x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
-         ];
-       };
+          github = {
+            enable = true;
+            token = "$GH_TOKEN";
+          };
+
+          # Here we build the x86_64-linux variants only because
+          # that is what runs on GHA, whence we push the images to
+          # ghcr.
+          images = with self.packages; [
+            x86_64-linux.tsnsrvOciImage
+            x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
+          ];
+        };
         type = "app";
       };
     };
