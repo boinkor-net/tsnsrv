@@ -39,15 +39,17 @@
       tsnsrv.program = config.packages.tsnsrv;
 
       pushImagesToGhcr = {
-        program = inputs.flocken.legacyPackages.${system}.mkDockerManifest {
+        program = inputs.flocken.legacyPackages.${system}.mkDockerManifest (let
+          ref = builtins.getEnv "GITHUB_REF_NAME";
+          isPR = pkgs.lib.hasSuffix "/merge" ref;
+          branch = if isPR then "pr-${pkgs.lib.removeSuffix "/merge" ref}" else ref;
+        in {
           autoTags = {
-            branch = true;
+            branch = !isPR;
             version = true;
           };
-          branch = let ref = builtins.getEnv "GITHUB_REF_NAME"; in
-            if pkgs.lib.hasSuffix "/merge" ref
-            then "pr-${pkgs.lib.removeSuffix "/merge" ref}"
-            else ref;
+          tags = if isPR then [branch] else [];
+          inherit branch;
 
           github = {
             enable = true;
@@ -61,7 +63,7 @@
             x86_64-linux.tsnsrvOciImage
             x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
           ];
-        };
+        });
         type = "app";
       };
     };
