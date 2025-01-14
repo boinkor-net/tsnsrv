@@ -39,29 +39,24 @@
       tsnsrv.program = config.packages.tsnsrv;
 
       pushImagesToGhcr = {
-        program = inputs.flocken.legacyPackages.${system}.mkDockerManifest (let
-          ref = builtins.getEnv "GITHUB_REF_NAME";
-          branch =
-            if pkgs.lib.hasSuffix "/merge" ref
-            then "pr-${pkgs.lib.removeSuffix "/merge" ref}"
-            else ref;
-        in {
-          inherit branch;
-          name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
-          version = builtins.getEnv "VERSION";
-          github = {
-            enable = true;
-            token = "$GH_TOKEN";
+        program = inputs.flocken.legacyPackages.${system}.mkDockerManifest {
+          autoTags = {
+            branch = true;
+            version = true;
           };
+         github = {
+           enable = true;
+           token = "$GH_TOKEN";
+         };
 
-          # Here we build the x86_64-linux variants only because
-          # that is what runs on GHA, whence we push the images to
-          # ghcr.
-          images = with self.packages; [
-            x86_64-linux.tsnsrvOciImage
-            x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
-          ];
-        });
+         # Here we build the x86_64-linux variants only because
+         # that is what runs on GHA, whence we push the images to
+         # ghcr.
+         images = with self.packages; [
+           x86_64-linux.tsnsrvOciImage
+           x86_64-linux.tsnsrvOciImage-cross-aarch64-linux
+         ];
+       };
         type = "app";
       };
     };
