@@ -41,14 +41,26 @@
       pushImagesToGhcr = {
         program = inputs.flocken.legacyPackages.${system}.mkDockerManifest (let
           ref = builtins.getEnv "GITHUB_REF_NAME";
+          isPR = pkgs.lib.hasSuffix "/merge" ref;
           branch =
-            if pkgs.lib.hasSuffix "/merge" ref
+            if isPR
             then "pr-${pkgs.lib.removeSuffix "/merge" ref}"
             else ref;
         in {
+          autoTags = {
+            branch = !isPR;
+            version = true;
+          };
+          tags =
+            if isPR
+            then [branch]
+            else [];
           inherit branch;
-          name = "ghcr.io/" + builtins.getEnv "GITHUB_REPOSITORY";
-          version = builtins.getEnv "VERSION";
+
+          github = {
+            enable = true;
+            token = "$GH_TOKEN";
+          };
 
           # Here we build the x86_64-linux variants only because
           # that is what runs on GHA, whence we push the images to
