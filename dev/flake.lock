@@ -77,11 +77,11 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1737364810,
-        "narHash": "sha256-5RUkG7Z/2u2W09T6ZIdH7k3L27sdb5zWdSexLW4xFqE=",
+        "lastModified": 1737581094,
+        "narHash": "sha256-MSjyNy4zENfngnSdXQ6ef/wwACB0jfDyhy0qkI67F9A=",
         "owner": "mirkolenz",
         "repo": "flocken",
-        "rev": "b79e6c3c40f6f6b30ff9e772c2c36ee517b1dbe3",
+        "rev": "97921a2650cb3de20c2a5ee591b00a6d5099fc40",
         "type": "github"
       },
       "original": {
