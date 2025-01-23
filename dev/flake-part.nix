@@ -48,13 +48,9 @@
             else ref;
         in {
           autoTags = {
-            branch = !isPR;
+            branch = true;
             version = true;
           };
-          tags =
-            if isPR
-            then [branch]
-            else [];
           inherit branch;
 
           github = {
