@@ -4,6 +4,46 @@
   lib,
   ...
 }: let
+  urlPartsSubmodule.options = with lib; {
+    protocol = mkOption {
+      description = "URL Scheme or protocol to use for reaching the upstream service.";
+      type = types.str;
+      default = "http";
+    };
+
+    host = mkOption {
+      description = "Host where the upstream service can be reached.";
+      type = types.str;
+    };
+
+    port = mkOption {
+      description = "Port where the upstream service can be reached.";
+      type = types.int;
+    };
+  };
+
+  urlPartsSubmoduleWithDefaults.options = with lib; let
+    inherit (config.services.tsnsrv) defaults;
+  in {
+    protocol = mkOption {
+      description = "URL Scheme or protocol to use for reaching the upstream service.";
+      type = types.str;
+      default = defaults.urlParts.protocol;
+    };
+
+    host = mkOption {
+      description = "Host where the upstream service can be reached.";
+      type = types.str;
+      default = defaults.urlParts.host;
+    };
+
+    port = mkOption {
+      description = "Port where the upstream service can be reached.";
+      type = types.port;
+      default = defaults.urlParts.port;
+    };
+  };
+
   serviceSubmodule = with lib; let
     inherit (config.services.tsnsrv) defaults;
   in ({config, ...}: {
@@ -129,32 +169,16 @@
         default = null;
       };
 
-      urlParts = {
-        host = mkOption {
-          description = "";
-          type = with types; nullOr str;
-          default = defaults.urlParts.host;
-        };
-
-        port = mkOption {
-          description = "The port to forward requests to";
-          type = with types; nullOr port;
-        };
-
-        protocol = mkOption {
-          description = "";
-          type = with types; nullOr str;
-          default = defaults.urlParts.protocol;
-        };
+      urlParts = mkOption {
+        description = "URL parts that make up an alternative to the toURL option.";
+        type = types.nullOr (types.submodule urlPartsSubmoduleWithDefaults);
+        default = null;
       };
 
       toURL = mkOption {
-        description = "URL to forward HTTP requests to";
+        description = "URL to forward HTTP requests to. Either this or the urlParts option must be set.";
         type = types.str;
-        default =
-          if services.urlParts != null
-          then "${config.urlParts.protocol}://${config.urlParts.host}:${builtins.toString config.urlParts.port}"
-          else null;
+        default = "${config.urlParts.protocol}://${config.urlParts.host}:${builtins.toString config.urlParts.port}";
       };
 
       supplementalGroups = mkOption {
@@ -309,17 +333,9 @@ in {
         default = false;
       };
 
-      urlParts = {
-        host = mkOption {
-          description = "Host to forward requests to";
-          type = with types; nullOr str;
-        };
-
-        protocol = mkOption {
-          description = "Protocol to forward requests to";
-          type = with types; nullOr str;
-          default = "http";
-        };
+      urlParts = mkOption {
+        description = "Default URL parts for tsnsrv services. Each service will have the parts here interpolated onto its .toURL option by default.";
+        type = types.submodule urlPartsSubmodule;
       };
     };
 
