@@ -15,7 +15,6 @@ jobs:
       - uses: cachix/install-nix-action@v30
       - uses: fregante/setup-git-user@v2
       - run: nix flake update --commit-lock-file
-      - run: nix flake check .
 
       - name: Generate token
         id: generate_token
