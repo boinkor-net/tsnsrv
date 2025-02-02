@@ -181,8 +181,8 @@
       toURL = mkOption {
         description = "URL to forward HTTP requests to. Either this or the urlParts option must be set.";
         type = types.str;
-        default = "${config.urlParts.protocol}://${config.urlParts.host}:${lib.toString config.urlParts.port}";
-        defaultText = lib.literalExpression "\${config.services.tsnsrv.<name>.urlParts.protocol}://\${config.services.tsnsrv.<name>.urlParts.host}:\${lib.toString config.services.tsnsrv.<name>.urlParts.port}";
+        default = "${config.urlParts.protocol}://${config.urlParts.host}:${toString config.urlParts.port}";
+        defaultText = lib.literalExpression "\${config.services.tsnsrv.<name>.urlParts.protocol}://\${config.services.tsnsrv.<name>.urlParts.host}:\${toString config.services.tsnsrv.<name>.urlParts.port}";
       };
 
       supplementalGroups = mkOption {
