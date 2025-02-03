@@ -22,6 +22,7 @@ env:
 
 jobs:
   docker_build:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,6 +40,7 @@ jobs:
       - name: Determine whether to push
         id: docker_pushable
         run: echo should=${{ toJSON(github.event_name != 'merge_group') }} >>$GITHUB_OUTPUT
+
       - name: Build the docker images we care about
         run: |
           nix build .#tsnsrvOciImage-cross-aarch64-linux .#tsnsrvOciImage
