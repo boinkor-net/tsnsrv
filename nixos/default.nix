@@ -29,18 +29,21 @@
       description = "URL Scheme or protocol to use for reaching the upstream service.";
       type = types.str;
       default = defaults.urlParts.protocol;
+      defaultText = lib.literalExpression "config.services.tsnsrv.defaults.urlParts.protocol";
     };
 
     host = mkOption {
       description = "Host where the upstream service can be reached.";
       type = types.str;
       default = defaults.urlParts.host;
+      defaultText = lib.literalExpression "config.services.tsnsrv.defaults.urlParts.host";
     };
 
     port = mkOption {
       description = "Port where the upstream service can be reached.";
       type = types.port;
       default = defaults.urlParts.port;
+      defaultText = lib.literalExpression "config.services.tsnsrv.defaults.urlParts.port";
     };
   };
 
@@ -178,7 +181,8 @@
       toURL = mkOption {
         description = "URL to forward HTTP requests to. Either this or the urlParts option must be set.";
         type = types.str;
-        default = "${config.urlParts.protocol}://${config.urlParts.host}:${builtins.toString config.urlParts.port}";
+        default = "${config.urlParts.protocol}://${config.urlParts.host}:${toString config.urlParts.port}";
+        defaultText = lib.literalExpression "\${config.services.tsnsrv.<name>.urlParts.protocol}://\${config.services.tsnsrv.<name>.urlParts.host}:\${toString config.services.tsnsrv.<name>.urlParts.port}";
       };
 
       supplementalGroups = mkOption {
