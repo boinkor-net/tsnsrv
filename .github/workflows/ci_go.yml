@@ -4,22 +4,31 @@ on:
 
 jobs:
   go_lints:
-    uses: "boinkor-net/ci-baseline-go/.github/workflows/ci_baseline_go_lints.yml@main"
-    with:
-      go_version: ""
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-go/actions/lint@main
+        with:
+          go_version: ""
 
   go_tests:
-    uses: "boinkor-net/ci-baseline-go/.github/workflows/ci_baseline_go_tests.yml@main"
-    with:
-      go_version: ""
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-go/actions/test@main
+        with:
+          go_version: ""
 
   go_build:
-    uses: "boinkor-net/ci-baseline-go/.github/workflows/ci_baseline_go_build.yml@main"
     strategy:
       matrix:
         build_target: ["."]
-    with:
-      subdir: ${{matrix.build_target}}
-      go_version: ""
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-go/actions/build@main
+        with:
+          subdir: ${{matrix.build_target}}
+          go_version: ""
 
 
