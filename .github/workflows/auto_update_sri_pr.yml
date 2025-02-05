@@ -41,7 +41,7 @@ jobs:
           token: ${{steps.generate_token.outputs.token}}
           fetch-depth: 0 # otherwise, you will failed to push refs to dest repo
       - uses: cachix/install-nix-action@v30
-      - uses: DeterminateSystems/magic-nix-cache-action@v8
+      - uses: DeterminateSystems/magic-nix-cache-action@v9
       - name: re-generate SRI
         run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#generate-sri-tsnsrv"
 
