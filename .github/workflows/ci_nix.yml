@@ -3,11 +3,19 @@ on:
   workflow_call:
 
 jobs:
-  nix_lints:
+  nix_fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: boinkor-net/ci-baseline-nix/actions/lint@main
+      - uses: boinkor-net/ci-baseline-nix/actions/fmt@main
+        with:
+          root: "."
+
+  nix_flake_safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-nix/actions/flake_safety@main
         with:
           root: "."
 
