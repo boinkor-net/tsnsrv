@@ -4,21 +4,30 @@ on:
 
 jobs:
   nix_lints:
-    uses: "boinkor-net/ci-baseline-nix/.github/workflows/lints.yml@main"
-    with:
-      root: "."
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-nix/actions/lint@main
+        with:
+          root: "."
 
   nix_test:
-    uses: "boinkor-net/ci-baseline-nix/.github/workflows/tests.yml@main"
-    with:
-      root: "."
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-nix/actions/test@main
+        with:
+          root: "."
 
   build:
-    uses: "boinkor-net/ci-baseline-nix/.github/workflows/build.yml@main"
     strategy:
       matrix:
         derivation: ["","tsnsrvOciImage"]
-    with:
-      root: "."
-      installable: ${{matrix.derivation}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-nix/actions/build@main
+        with:
+          root: "."
+          installable: ${{matrix.derivation}}
 
