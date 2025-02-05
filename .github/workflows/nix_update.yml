@@ -12,27 +12,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v30
-      - uses: fregante/setup-git-user@v2
-      - run: nix flake update --commit-lock-file
-
-      - name: Generate token
-        id: generate_token
-        uses: tibdex/github-app-token@v2
+      - uses: github.com/boinkor-net/ci-baseline-nix/actions/flake_update@latest
         with:
           app_id: ${{ vars.PR_FIXUP_APP_ID }}
-          installation_id: ${{ vars.PR_FIXUP_INSTALLATION_ID }}
-          permissions: >-
-            {"contents": "write", "pull_requests": "write"}
-          private_key: ${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{steps.generate_token.outputs.token}}
-          commit-message: "Update flake.lock"
-          assignees: antifuchs
-          delete-branch: true
-          branch: flake-update
-          base: main
-          title: "Update flake.lock"
+          app_installation_id: ${{ vars.PR_FIXUP_INSTALLATION_ID }}
+          app_private_key: ${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
