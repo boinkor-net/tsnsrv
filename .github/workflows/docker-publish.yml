@@ -33,7 +33,7 @@ jobs:
 
     steps:
       - uses: cachix/install-nix-action@v30
-      - uses: DeterminateSystems/magic-nix-cache-action@v8
+      - uses: DeterminateSystems/magic-nix-cache-action@v9
       - name: Checkout repository
         uses: actions/checkout@v4
 
