@@ -12,7 +12,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: boinkor-net/ci-baseline-nix/actions/flake_update@latest
+      - uses: boinkor-net/ci-baseline-nix/actions/flake_update@main
         with:
           app_id: ${{ vars.PR_FIXUP_APP_ID }}
           app_installation_id: ${{ vars.PR_FIXUP_INSTALLATION_ID }}
