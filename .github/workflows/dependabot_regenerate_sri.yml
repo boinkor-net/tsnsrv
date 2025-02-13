@@ -29,7 +29,7 @@ jobs:
       - uses: cachix/install-nix-action@v30
       - uses: DeterminateSystems/magic-nix-cache-action@v9
       - name: re-generate SRI
-        run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#generate-sri-default"
+        run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#generate-sri-tsnsrv"
 
       - name: Push changes to ${{github.base_ref}}
         uses: stefanzweifel/git-auto-commit-action@v5
