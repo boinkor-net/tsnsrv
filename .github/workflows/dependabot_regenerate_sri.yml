@@ -1,0 +1,38 @@
+name: "Regenerate SRI on dependabot PRs"
+on:
+  pull_request:
+    paths:
+      - go.mod
+      - go.sum
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  update_dependabot_pr:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'boinkor-net/tsnsrv'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate token
+        id: generate_token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ vars.PR_FIXUP_APP_ID }}
+          private_key: ${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
+          permissions: >-
+            {"contents": "write"}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{steps.generate_token.outputs.token}}
+      - uses: cachix/install-nix-action@v30
+      - uses: DeterminateSystems/magic-nix-cache-action@v9
+      - name: re-generate SRI
+        run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#generate-sri-default"
+
+      - name: Push changes to ${{github.base_ref}}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update gomod SRI hash"
+          file_pattern: "*.sri"
