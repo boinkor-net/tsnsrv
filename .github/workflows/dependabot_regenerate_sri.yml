@@ -27,7 +27,6 @@ jobs:
           fetch-depth: 0
           token: ${{steps.generate_token.outputs.token}}
       - uses: samueldr/lix-gha-installer-action@latest
-      - uses: DeterminateSystems/magic-nix-cache-action@v9
       - name: re-generate SRI
         run: "nix --extra-experimental-features nix-command --extra-experimental-features flakes run .#generate-sri-tsnsrv"
 
