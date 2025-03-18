@@ -9,6 +9,7 @@
   };
 in
   helper {
+    name = "with-custom-certs";
     testConfig = {
       services.tsnsrv.services.custom = {
         toURL = "http://127.0.0.1:3000";

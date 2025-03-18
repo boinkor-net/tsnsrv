@@ -4,11 +4,12 @@
   nixosModule,
   validatorPackage,
 }: {
+  name,
   testConfig,
   testScript,
 }:
 nixos-lib.runTest {
-  name = "tsnsrv-nixos";
+  name = "cmdline-${name}";
   hostPkgs = pkgs;
 
   defaults.services.tsnsrv.enable = true;

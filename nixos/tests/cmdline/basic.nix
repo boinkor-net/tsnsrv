@@ -9,6 +9,7 @@
   };
 in
   helper {
+    name = "basic";
     testConfig = {
       services.tsnsrv.services.basic.toURL = "http://127.0.0.1:3000";
       systemd.services.tsnsrv-basic.enableStrictShellChecks = true;
