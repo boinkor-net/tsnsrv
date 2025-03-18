@@ -32,8 +32,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: cachix/install-nix-action@v30
-      - uses: DeterminateSystems/magic-nix-cache-action@v9
+      - uses: samueldr/lix-gha-installer-action@latest
       - name: Checkout repository
         uses: actions/checkout@v4
 
