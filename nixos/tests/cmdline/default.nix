@@ -7,6 +7,5 @@
   nixosModule,
   validatorPackage,
 }: {
-  basic = import ./basic.nix {inherit pkgs nixos-lib nixosModule validatorPackage;};
-  with-custom-certs = import ./with-custom-certs.nix {inherit pkgs nixos-lib nixosModule validatorPackage;};
+  all = import ./all.nix {inherit pkgs nixos-lib nixosModule validatorPackage;};
 }
