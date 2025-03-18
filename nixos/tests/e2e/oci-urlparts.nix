@@ -6,7 +6,7 @@
   stunPort = 3478;
 in
   nixos-lib.runTest {
-    name = "tsnsrv-nixos";
+    name = "oci-urlparts";
     hostPkgs = pkgs;
 
     nodes.headscale = {

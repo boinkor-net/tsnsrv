@@ -6,7 +6,7 @@
   stunPort = 3478;
 in
   nixos-lib.runTest {
-    name = "tsnsrv-nixos";
+    name = "systemd-urlparts";
     hostPkgs = pkgs;
 
     defaults.services.tsnsrv.enable = true;
@@ -82,6 +82,7 @@ in
       systemd.services.tsnsrv-basic = {
         enableStrictShellChecks = true;
         wants = ["generate-tsnsrv-authkey@basic.service"];
+        requires = ["generate-tsnsrv-authkey@basic.service"];
         after = ["generate-tsnsrv-authkey@basic.service"];
         unitConfig.Requires = ["generate-tsnsrv-authkey@basic.service"];
       };
