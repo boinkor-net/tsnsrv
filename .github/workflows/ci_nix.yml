@@ -7,35 +7,67 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-nix/actions/setup@main
+        with:
+          tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
+          tailnet_client_secret: ${{ secrets.TAILSCALE_CI_CLIENT_SECRET }}
+          attic_cache: "boinkornet-github-ci"
+          attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
+          attic_token: ${{ secrets.ATTIC_TOKEN }}
       - uses: boinkor-net/ci-baseline-nix/actions/fmt@main
         with:
           root: "."
+          skip_nix_setup: true
 
   nix_flake_safety:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-nix/actions/setup@main
+        with:
+          tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
+          tailnet_client_secret: ${{ secrets.TAILSCALE_CI_CLIENT_SECRET }}
+          attic_cache: "boinkornet-github-ci"
+          attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
+          attic_token: ${{ secrets.ATTIC_TOKEN }}
       - uses: boinkor-net/ci-baseline-nix/actions/flake_safety@main
         with:
           root: "."
+          skip_nix_setup: true
 
   nix_test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-nix/actions/setup@main
+        with:
+          tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
+          tailnet_client_secret: ${{ secrets.TAILSCALE_CI_CLIENT_SECRET }}
+          attic_cache: "boinkornet-github-ci"
+          attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
+          attic_token: ${{ secrets.ATTIC_TOKEN }}
       - uses: boinkor-net/ci-baseline-nix/actions/test@main
         with:
           root: "."
+          skip_nix_setup: true
 
   build:
     strategy:
       matrix:
-        derivation: ["","tsnsrvOciImage"]
+        derivation: ["", "tsnsrvOciImage"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: boinkor-net/ci-baseline-nix/actions/setup@main
+        with:
+          tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
+          tailnet_client_secret: ${{ secrets.TAILSCALE_CI_CLIENT_SECRET }}
+          attic_cache: "boinkornet-github-ci"
+          attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
+          attic_token: ${{ secrets.ATTIC_TOKEN }}
       - uses: boinkor-net/ci-baseline-nix/actions/build@main
         with:
           root: "."
           installable: ${{matrix.derivation}}
-
+          skip_nix_setup: true
