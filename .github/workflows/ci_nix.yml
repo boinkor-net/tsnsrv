@@ -14,6 +14,7 @@ jobs:
           attic_cache: "boinkornet-github-ci"
           attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
           attic_token: ${{ secrets.ATTIC_TOKEN }}
+          root: "."
       - uses: boinkor-net/ci-baseline-nix/actions/fmt@main
         with:
           root: "."
@@ -30,6 +31,7 @@ jobs:
           attic_cache: "boinkornet-github-ci"
           attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
           attic_token: ${{ secrets.ATTIC_TOKEN }}
+          root: "."
       - uses: boinkor-net/ci-baseline-nix/actions/flake_safety@main
         with:
           root: "."
@@ -46,6 +48,7 @@ jobs:
           attic_cache: "boinkornet-github-ci"
           attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
           attic_token: ${{ secrets.ATTIC_TOKEN }}
+          root: "."
       - uses: boinkor-net/ci-baseline-nix/actions/test@main
         with:
           root: "."
@@ -54,11 +57,10 @@ jobs:
   build:
     strategy:
       matrix:
-        derivation: ["", "tsnsrvOciImage"]
+        derivation: ["","tsnsrvOciImage"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: boinkor-net/ci-baseline-nix/actions/setup@main
         with:
           tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
@@ -66,8 +68,10 @@ jobs:
           attic_cache: "boinkornet-github-ci"
           attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
           attic_token: ${{ secrets.ATTIC_TOKEN }}
+          root: "."
       - uses: boinkor-net/ci-baseline-nix/actions/build@main
         with:
           root: "."
           installable: ${{matrix.derivation}}
           skip_nix_setup: true
+
