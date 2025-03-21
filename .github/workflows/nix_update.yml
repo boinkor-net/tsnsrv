@@ -12,8 +12,18 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+      - uses: boinkor-net/ci-baseline-nix/actions/setup@main
+        with:
+          tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
+          tailnet_client_secret: ${{ secrets.TAILSCALE_CI_CLIENT_SECRET }}
+          attic_cache: "boinkornet-github-ci"
+          attic_endpoint: ${{ secrets.ATTIC_ENDPOINT }}
+          attic_token: ${{ secrets.ATTIC_TOKEN }}
+          root: "."
       - uses: boinkor-net/ci-baseline-nix/actions/flake_update@main
         with:
+          root: "."
           app_id: ${{ vars.PR_FIXUP_APP_ID }}
           app_installation_id: ${{ vars.PR_FIXUP_INSTALLATION_ID }}
           app_private_key: ${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
+          skip_nix_setup: true
