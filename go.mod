@@ -4,11 +4,11 @@ go 1.23.1
 
 require (
 	github.com/peterbourgon/ff/v3 v3.4.0
-	github.com/prometheus/client_golang v1.21.0
+	github.com/prometheus/client_golang v1.21.1
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
-	golang.org/x/oauth2 v0.26.0
-	tailscale.com v1.80.2
+	golang.org/x/oauth2 v0.28.0
+	tailscale.com v1.80.3
 )
 
 require (
