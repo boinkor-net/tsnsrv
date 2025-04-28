@@ -467,6 +467,7 @@ in {
                 serviceConfig =
                   {
                     DynamicUser = true;
+                    Restart = "always";
                     SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
                     StateDirectory = "tsnsrv-${name}";
                     StateDirectoryMode = "0700";
