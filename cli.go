@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,14 +27,75 @@ import (
 	"tailscale.com/types/logger"
 )
 
-type prefixes []string
+type prefixMatch int
+
+const (
+	matchEither prefixMatch = iota
+	matchFunnelOnly
+	matchTsnetOnly
+)
+
+type prefix struct {
+	path    string
+	matchIf prefixMatch
+}
+
+type strippedPrefixes struct {
+	path    string
+	rawPath string
+}
+
+// matches returns whether an allowlist entry matches a request's URL and circumstance.
+func (pref *prefix) matches(reqURL *url.URL, isFunnel bool) (bool, strippedPrefixes) {
+	if isFunnel && pref.matchIf == matchTsnetOnly {
+		return false, strippedPrefixes{}
+	}
+	if !isFunnel && pref.matchIf == matchFunnelOnly {
+		return false, strippedPrefixes{}
+	}
+
+	p := strings.TrimPrefix(reqURL.Path, pref.path)
+	rp := strings.TrimPrefix(reqURL.RawPath, pref.path)
+	return len(p) < len(reqURL.Path) && (reqURL.RawPath == "" || len(rp) < len(reqURL.RawPath)), strippedPrefixes{p, rp}
+}
+
+type prefixes []prefix
 
 func (p *prefixes) String() string {
-	return strings.Join(*p, ", ")
+	seq := func(yield func(string) bool) {
+		for _, pref := range *p {
+			var p string
+			switch pref.matchIf {
+			case matchEither:
+				p = pref.path
+			case matchFunnelOnly:
+				p = fmt.Sprintf("funnel:%s", pref.path)
+			case matchTsnetOnly:
+				p = fmt.Sprintf("tailnet:%s", pref.path)
+			}
+			if !yield(p) {
+				return
+			}
+		}
+	}
+	serialized := slices.Collect(seq)
+	return strings.Join(serialized, ", ")
 }
 
 func (p *prefixes) Set(value string) error {
-	*p = append(*p, value)
+	var pref prefix
+	switch {
+	case strings.HasPrefix(value, "tailnet:"):
+		pref.matchIf = matchTsnetOnly
+		pref.path = strings.TrimPrefix(value, "tailnet:")
+	case strings.HasPrefix(value, "funnel:"):
+		pref.matchIf = matchFunnelOnly
+		pref.path = strings.TrimPrefix(value, "funnel:")
+	default:
+		pref.path = value
+	}
+
+	*p = append(*p, pref)
 	return nil
 }
 
@@ -281,6 +343,9 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 	}
 	s.client, err = srv.LocalClient()
 	if err != nil {
+		if slices.ContainsFunc(s.AllowedPrefixes, func(p prefix) bool { return p.matchIf != matchEither }) {
+			return fmt.Errorf("-prefix rules with a provenance (tsnet: or funnel:) require that a local tailscale client is available: %w", err)
+		}
 		slog.Warn("could not get a local tailscale client. Whois headers will not work.",
 			"error", err,
 		)
@@ -326,7 +391,7 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 			transport.TLSClientConfig.CipherSuites = append(transport.TLSClientConfig.CipherSuites, suite.ID)
 		}
 	}
-	mux := s.mux(transport)
+	mux := s.mux(transport, nil)
 
 	err = s.setupPrometheus(srv)
 	if err != nil {
