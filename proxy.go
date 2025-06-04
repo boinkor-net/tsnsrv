@@ -2,7 +2,6 @@ package tsnsrv
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/exp/slog"
-	"tailscale.com/client/tailscale"
 	"tailscale.com/client/tailscale/apitype"
 )
 
@@ -190,14 +188,13 @@ func (s *ValidTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.Who
 // that it checks against several allowed prefixes (an empty list
 // means that all prefixes are allowed); if no prefixes match, it
 // returns 404.
-func matchPrefixes(prefixes []prefix, strip bool, tsClient *tailscale.LocalClient, handler http.Handler) http.Handler {
+func matchPrefixes(prefixes []prefix, strip bool, forFunnel bool, handler http.Handler) http.Handler {
 	if len(prefixes) == 0 {
 		return handler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		isFunnel := IsRequestFromFunnel(r.Context(), tsClient, r.RemoteAddr)
 		for _, prefix := range prefixes {
-			if ok, stripData := prefix.matches(r.URL, isFunnel); ok {
+			if ok, stripData := prefix.matches(r.URL, forFunnel); ok {
 				r2 := new(http.Request)
 				*r2 = *r
 				if strip {
@@ -213,13 +210,13 @@ func matchPrefixes(prefixes []prefix, strip bool, tsClient *tailscale.LocalClien
 		slog.WarnCtx(r.Context(), "URL prefix not allowed",
 			"url", r.URL,
 			"prefixes", prefixes,
-			"isFunnel", isFunnel,
+			"forFunnel", forFunnel,
 		)
 		http.NotFound(w, r)
 	})
 }
 
-func (s *ValidTailnetSrv) mux(transport http.RoundTripper, outer func(http.Handler) http.Handler) http.Handler {
+func (s *ValidTailnetSrv) mux(transport http.RoundTripper, forFunnel bool) http.Handler {
 	proxy := &httputil.ReverseProxy{
 		Rewrite:        s.rewrite,
 		ModifyResponse: s.modifyResponse,
@@ -227,37 +224,8 @@ func (s *ValidTailnetSrv) mux(transport http.RoundTripper, outer func(http.Handl
 		Transport:      transport,
 	}
 	mux := http.NewServeMux()
-	if outer == nil {
-		outer = func(in http.Handler) http.Handler { return in }
-	}
-	mux.Handle("/", outer(matchPrefixes(s.AllowedPrefixes, s.StripPrefix, s.client, proxy)))
+
+	mux.Handle("/", matchPrefixes(s.AllowedPrefixes, s.StripPrefix, forFunnel, proxy))
 
 	return mux
-}
-
-type testFakeFunnelReqKey struct{}
-
-func TestContextWithFakeFunnelProvenance(ctx context.Context, fromFunnel bool) context.Context {
-	return context.WithValue(ctx, testFakeFunnelReqKey{}, fromFunnel)
-}
-
-// IsRequestFromFunnel returns true the request was made from an address that doesn't resolve back to a
-// tailnet address (which usually indicates that it came in through the funnel).
-func IsRequestFromFunnel(ctx context.Context, tsClient *tailscale.LocalClient, remoteAddr string) bool {
-	// If we're in tests, short-circuit the check:
-	fakeFromFunnel, ok := ctx.Value(testFakeFunnelReqKey{}).(bool)
-	if ok {
-		return fakeFromFunnel
-	}
-
-	// Otherwise, try to look up the provenance of the request:
-	if tsClient != nil {
-		val, err := tsClient.WhoIs(ctx, remoteAddr)
-		slog.Info("identifying marks",
-			"node", val.Node,
-		)
-		return errors.Is(err, tailscale.ErrPeerNotFound)
-	}
-	// For now, assume that a request in tests never came from a funnel connection.
-	return false
 }

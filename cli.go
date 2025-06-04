@@ -344,17 +344,12 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 	s.client, err = srv.LocalClient()
 	if err != nil {
 		if slices.ContainsFunc(s.AllowedPrefixes, func(p prefix) bool { return p.matchIf != matchEither }) {
-			return fmt.Errorf("-prefix rules with a provenance (tsnet: or funnel:) require that a local tailscale client is available: %w", err)
+			return fmt.Errorf("-prefix rules with a provenance (tailnet: or funnel:) require that a local tailscale client is available: %w", err)
 		}
 		slog.Warn("could not get a local tailscale client. Whois headers will not work.",
 			"error", err,
 		)
 	}
-	l, err := s.listen(srv)
-	if err != nil {
-		return fmt.Errorf("could not listen: %w", err)
-	}
-
 	dial := srv.Dial
 	if s.SuppressTailnetDialer {
 		d := net.Dialer{}
@@ -391,8 +386,6 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 			transport.TLSClientConfig.CipherSuites = append(transport.TLSClientConfig.CipherSuites, suite.ID)
 		}
 	}
-	mux := s.mux(transport, nil)
-
 	err = s.setupPrometheus(srv)
 	if err != nil {
 		slog.Error("Could not setup prometheus listener", "error", err)
@@ -409,37 +402,53 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 		"funnel", s.Funnel,
 		"funnelOnly", s.FunnelOnly,
 	)
-	server := http.Server{
-		Handler:           mux,
+	tailnetServer := http.Server{
+		Handler:           s.mux(transport, false),
+		ReadHeaderTimeout: s.ReadHeaderTimeout,
+	}
+	funnelServer := http.Server{
+		Handler:           s.mux(transport, true),
 		ReadHeaderTimeout: s.ReadHeaderTimeout,
 	}
 
-	if !s.ServePlaintext && (s.certificateFile != "" || s.keyFile != "") {
-		return fmt.Errorf("while serving: %w", server.ServeTLS(l, s.certificateFile, s.keyFile))
+	serveResults := make(chan error)
+	if s.Funnel {
+		go func() {
+			serveResults <- fmt.Errorf("on the funnel for %v: %w", srv, func() error {
+				listener, err := srv.ListenFunnel("tcp", s.ListenAddr, tsnet.FunnelOnly())
+				if err != nil {
+					return fmt.Errorf("creating funnel listener for %v: %w", srv, err)
+				}
+				return funnelServer.Serve(listener)
+			}())
+		}()
+	}
+	if s.FunnelOnly {
+		return fmt.Errorf("while serving: %w", <-serveResults)
 	}
 
-	return fmt.Errorf("while serving: %w", server.Serve(l))
-}
+	go func() {
+		serveResults <- fmt.Errorf("on the tailnet for %v: %w", srv, func() error {
+			if s.certificateFile != "" || s.keyFile != "" {
+				listener, err := srv.Listen("tcp", s.ListenAddr)
+				if err != nil {
+					return fmt.Errorf("creating custom-cert TLS listener on the tailnet: %w", err)
+				}
+				return tailnetServer.ServeTLS(listener, s.certificateFile, s.keyFile)
+			}
 
-func (s *TailnetSrv) listen(srv *tsnet.Server) (net.Listener, error) {
-	var l net.Listener
-	var err error
-	switch {
-	case s.Funnel:
-		opts := []tsnet.FunnelOption{}
-		if s.FunnelOnly {
-			opts = append(opts, tsnet.FunnelOnly())
-		}
-		l, err = srv.ListenFunnel("tcp", s.ListenAddr, opts...)
-	case !s.ServePlaintext && (s.certificateFile == "" || s.keyFile == ""):
-		l, err = srv.ListenTLS("tcp", s.ListenAddr)
-	default:
-		l, err = srv.Listen("tcp", s.ListenAddr)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("listener for %v: %w", srv, err)
-	}
-	return l, nil
+			listen := func() (net.Listener, error) { return srv.ListenTLS("tcp", s.ListenAddr) }
+			if s.ServePlaintext {
+				listen = func() (net.Listener, error) { return srv.Listen("tcp", s.ListenAddr) }
+			}
+			listener, err := listen()
+			if err != nil {
+				return fmt.Errorf("creating listener on the tailnet: %w", err)
+			}
+			return tailnetServer.Serve(listener)
+		}())
+	}()
+	return fmt.Errorf("while serving: %w", <-serveResults)
 }
 
 func (s *ValidTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
