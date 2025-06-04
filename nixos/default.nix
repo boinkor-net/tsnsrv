@@ -131,9 +131,10 @@
       };
 
       prefixes = mkOption {
-        description = "URL path prefixes to allow in forwarding. Acts as an allowlist but if unset, all prefixes are allowed.";
-        type = types.listOf types.str;
+        description = "URL path prefixes to allow in forwarding. Acts as an allowlist but if no prefixes are set, all prefixes are allowed.";
+        type = types.listOf (types.strMatching "^(/|tailnet:/|funnel:/).*");
         default = [];
+        example = ["tailnet:/" "funnel:/.well-known/"];
       };
 
       stripPrefix = mkOption {
