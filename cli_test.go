@@ -2,7 +2,7 @@ package tsnsrv
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -62,38 +62,108 @@ func TestPrefixServing(t *testing.T) {
 		w.Write([]byte("ok"))
 	})
 	ts := httptest.NewServer(testmux)
-	defer ts.Close()
+	t.Cleanup(ts.Close)
 
 	s, _, err := TailnetSrvFromArgs([]string{"tsnsrv", "-name", "TestPrefixServing", "-ephemeral",
-		"-prefix", "/subpath", "-prefix", "/other/subpath",
+		"-prefix", "/subpath",
+		"-prefix", "/other/subpath",
+		"-prefix", "funnel:/funnel-only-subpath",
+		"-prefix", "tailnet:/tsnet-only-subpath",
 		ts.URL,
 	})
 	require.NoError(t, err)
-	mux := s.mux(http.DefaultTransport)
+
+	// The routes allowed on the tsnet must succeed for requests on the tailnet:
+	mux := s.mux(http.DefaultTransport, false)
 	proxy := httptest.NewServer(mux)
 	pc := proxy.Client()
 	resp404, err := pc.Get(proxy.URL)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
 
-	for _, subpath := range []string{"/subpath", "/other/subpath"} {
-		// Subpath itself:
-		respOk, err := pc.Get(proxy.URL + subpath)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, respOk.StatusCode)
-		body, err := ioutil.ReadAll(respOk.Body)
-		require.NoError(t, err)
-		assert.Equal(t, []byte("ok"), body)
+	for _, tp := range []string{
+		"/subpath",
+		"/other/subpath",
+		"/tsnet-only-subpath",
+	} {
+		t.Run(fmt.Sprintf("tailnet:%s", tp), func(t *testing.T) {
+			subpath := tp
+			t.Parallel()
 
-		// Subpaths of subpath:
-		respOk, err = pc.Get(proxy.URL + subpath + "/hi")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, respOk.StatusCode)
-		body, err = ioutil.ReadAll(respOk.Body)
-		require.NoError(t, err)
-		assert.Equal(t, []byte("ok"), body)
+			// Subpath itself:
+			respOk, err := pc.Get(proxy.URL + subpath)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, respOk.StatusCode)
+			body, err := io.ReadAll(respOk.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "ok", string(body))
+
+			// Subpaths of subpath:
+			respOk, err = pc.Get(proxy.URL + subpath + "/hi")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, respOk.StatusCode)
+			body, err = io.ReadAll(respOk.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "ok", string(body))
+		})
 	}
 
+	// The routes allowed on the funnel must succeed for requests from the funnel:
+	mux = s.mux(http.DefaultTransport, true)
+	funnelProxy := httptest.NewServer(mux)
+	fpc := funnelProxy.Client()
+	resp404, err = fpc.Get(funnelProxy.URL)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
+	for _, tp := range []string{
+		"/other/subpath",
+		"/funnel-only-subpath",
+	} {
+		t.Run(fmt.Sprintf("funnel:%s", tp), func(t *testing.T) {
+			subpath := tp
+			t.Parallel()
+
+			// Subpath itself:
+			respOk, err := fpc.Get(funnelProxy.URL + subpath)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, respOk.StatusCode)
+			body, err := io.ReadAll(respOk.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "ok", string(body))
+
+			// Subpaths of subpath:
+			respOk, err = fpc.Get(funnelProxy.URL + subpath + "/hi")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, respOk.StatusCode)
+			body, err = io.ReadAll(respOk.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "ok", string(body))
+		})
+	}
+
+	// funnel-only routes aren't allowed on the tailnet:
+	for _, tp := range []struct {
+		path   string
+		funnel bool
+	}{
+		{"/funnel-only-subpath", false},
+		{"/tsnet-only-subpath", true},
+	} {
+		t.Run(fmt.Sprintf("negative:%s funnel:%v", tp.path, tp.funnel), func(t *testing.T) {
+			subpath := tp
+			t.Parallel()
+
+			// Note: The header value is inverted from above, as we're testing the opposite case.
+			var resp *http.Response
+			if subpath.funnel {
+				resp, err = fpc.Get(funnelProxy.URL + subpath.path)
+			} else {
+				resp, err = pc.Get(proxy.URL + subpath.path)
+			}
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		})
+	}
 }
 
 func TestRouting(t *testing.T) {
@@ -128,7 +198,7 @@ func TestRouting(t *testing.T) {
 				ts.URL + test.toURLPath,
 			})
 			require.NoError(t, err)
-			mux := s.mux(http.DefaultTransport)
+			mux := s.mux(http.DefaultTransport, false)
 			proxy := httptest.NewServer(mux)
 			pc := proxy.Client()
 			resp, err := pc.Get(proxy.URL + test.requestPath)
@@ -153,7 +223,7 @@ func TestHeaderSanitization(t *testing.T) {
 		ts.URL,
 	})
 	require.NoError(t, err)
-	mux := s.mux(http.DefaultTransport)
+	mux := s.mux(http.DefaultTransport, false)
 	proxy := httptest.NewServer(mux)
 	pc := proxy.Client()
 	req, err := http.NewRequest("GET", proxy.URL, nil)
@@ -192,7 +262,7 @@ func TestCustomHeaders(t *testing.T) {
 				ts.URL,
 			})
 			require.NoError(t, err)
-			mux := s.mux(http.DefaultTransport)
+			mux := s.mux(http.DefaultTransport, false)
 			proxy := httptest.NewServer(mux)
 			pc := proxy.Client()
 			req, err := http.NewRequest("GET", proxy.URL, nil)

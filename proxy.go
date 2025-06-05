@@ -188,22 +188,20 @@ func (s *ValidTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.Who
 // that it checks against several allowed prefixes (an empty list
 // means that all prefixes are allowed); if no prefixes match, it
 // returns 404.
-func matchPrefixes(prefixes []string, strip bool, handler http.Handler) http.Handler {
+func matchPrefixes(prefixes []prefix, strip bool, forFunnel bool, handler http.Handler) http.Handler {
 	if len(prefixes) == 0 {
 		return handler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for _, prefix := range prefixes {
-			p := strings.TrimPrefix(r.URL.Path, prefix)
-			rp := strings.TrimPrefix(r.URL.RawPath, prefix)
-			if len(p) < len(r.URL.Path) && (r.URL.RawPath == "" || len(rp) < len(r.URL.RawPath)) {
+			if ok, stripData := prefix.matches(r.URL, forFunnel); ok {
 				r2 := new(http.Request)
 				*r2 = *r
 				if strip {
 					r2.URL = new(url.URL)
 					*r2.URL = *r.URL
-					r2.URL.Path = p
-					r2.URL.RawPath = rp
+					r2.URL.Path = stripData.path
+					r2.URL.RawPath = stripData.rawPath
 				}
 				handler.ServeHTTP(w, r2)
 				return
@@ -212,12 +210,13 @@ func matchPrefixes(prefixes []string, strip bool, handler http.Handler) http.Han
 		slog.WarnCtx(r.Context(), "URL prefix not allowed",
 			"url", r.URL,
 			"prefixes", prefixes,
+			"forFunnel", forFunnel,
 		)
 		http.NotFound(w, r)
 	})
 }
 
-func (s *ValidTailnetSrv) mux(transport http.RoundTripper) http.Handler {
+func (s *ValidTailnetSrv) mux(transport http.RoundTripper, forFunnel bool) http.Handler {
 	proxy := &httputil.ReverseProxy{
 		Rewrite:        s.rewrite,
 		ModifyResponse: s.modifyResponse,
@@ -225,6 +224,8 @@ func (s *ValidTailnetSrv) mux(transport http.RoundTripper) http.Handler {
 		Transport:      transport,
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/", matchPrefixes(s.AllowedPrefixes, s.StripPrefix, proxy))
+
+	mux.Handle("/", matchPrefixes(s.AllowedPrefixes, s.StripPrefix, forFunnel, proxy))
+
 	return mux
 }
