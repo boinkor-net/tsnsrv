@@ -166,6 +166,118 @@ func TestPrefixServing(t *testing.T) {
 	}
 }
 
+func TestPrefixDenied(t *testing.T) {
+	testmux := http.NewServeMux()
+	testmux.HandleFunc("/subpath", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("wrong"))
+	})
+	testmux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+	ts := httptest.NewServer(testmux)
+	t.Cleanup(ts.Close)
+	s, _, err := TailnetSrvFromArgs([]string{"tsnsrv", "-name", "TestPrefixDenied", "-ephemeral",
+		"-denyPrefix", "/subpath",
+		"-denyPrefix", "/other/subpath",
+		"-denyPrefix", "funnel:/funnel-only-subpath",
+		"-denyPrefix", "tailnet:/tsnet-only-subpath",
+		ts.URL,
+	})
+	require.NoError(t, err)
+
+	// The routes denied on the tsnet must fail for requests on the tailnet:
+	mux := s.mux(http.DefaultTransport, false)
+	proxy := httptest.NewServer(mux)
+	pc := proxy.Client()
+	respOk, err := pc.Get(proxy.URL)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, respOk.StatusCode)
+	body, err := io.ReadAll(respOk.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "ok", string(body))
+	for _, tp := range []string{
+		"/subpath",
+		"/other/subpath",
+		"/tsnet-only-subpath",
+	} {
+		t.Run(fmt.Sprintf("tailnet:%s", tp), func(t *testing.T) {
+			subpath := tp
+			t.Parallel()
+			// Subpath itself:
+			resp404, err := pc.Get(proxy.URL + subpath)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
+			// Subpaths of subpath:
+			resp404, err = pc.Get(proxy.URL + subpath + "/hi")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
+		})
+	}
+
+	// The routes denied on the funnel must fail for requests from the funnel:
+	mux = s.mux(http.DefaultTransport, true)
+	funnelProxy := httptest.NewServer(mux)
+	fpc := funnelProxy.Client()
+	respOk, err = fpc.Get(funnelProxy.URL)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, respOk.StatusCode)
+	for _, tp := range []string{
+		"/other/subpath",
+		"/funnel-only-subpath",
+	} {
+		t.Run(fmt.Sprintf("funnel:%s", tp), func(t *testing.T) {
+			subpath := tp
+			t.Parallel()
+			// Subpath itself:
+			resp404, err := fpc.Get(funnelProxy.URL + subpath)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
+			// Subpaths of subpath:
+			resp404, err = fpc.Get(funnelProxy.URL + subpath + "/hi")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusNotFound, resp404.StatusCode)
+		})
+	}
+
+	// funnel-only routes are denied on the tailnet:
+	for _, tp := range []struct {
+		path   string
+		funnel bool
+	}{
+		{"/funnel-only-subpath", true},
+		{"/tsnet-only-subpath", false},
+	} {
+		t.Run(fmt.Sprintf("positive:%s funnel:%v", tp.path, tp.funnel), func(t *testing.T) {
+			subpath := tp
+			t.Parallel()
+			var resp *http.Response
+			if subpath.funnel {
+				resp, err = fpc.Get(funnelProxy.URL + subpath.path)
+			} else {
+				resp, err = pc.Get(proxy.URL + subpath.path)
+			}
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "404 page not found\n", string(body))
+			// Subpaths of subpath:
+			if subpath.funnel {
+				resp, err = fpc.Get(funnelProxy.URL + subpath.path + "/hi")
+			} else {
+				resp, err = pc.Get(proxy.URL + subpath.path + "/hi")
+			}
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			body, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "404 page not found\n", string(body))
+		})
+	}
+}
+
 func TestRouting(t *testing.T) {
 	for _, elt := range []struct {
 		name, fromPath, toURLPath, requestPath, expectedPath string

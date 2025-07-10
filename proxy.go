@@ -185,15 +185,35 @@ func (s *ValidTailnetSrv) setWhoisHeaders(r *httputil.ProxyRequest) *apitype.Who
 }
 
 // matchPrefixes acts like the http.StripPrefix middleware, except
-// that it checks against several allowed prefixes (an empty list
-// means that all prefixes are allowed); if no prefixes match, it
+// that it checks against several allowed prefixes and denied prefixes
+// (an empty allowed list means that all prefixes are allowed and an empty
+// denied list means that no prefixes are denied); if no prefixes match, it
 // returns 404.
-func matchPrefixes(prefixes []prefix, strip bool, forFunnel bool, handler http.Handler) http.Handler {
-	if len(prefixes) == 0 {
+func matchPrefixes(allowedPrefixes, deniedPrefixes []prefix, strip bool, forFunnel bool, handler http.Handler) http.Handler {
+	if len(allowedPrefixes) == 0 && len(deniedPrefixes) == 0 {
 		return handler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, prefix := range prefixes {
+		for _, prefix := range deniedPrefixes {
+			if ok, _ := prefix.matches(r.URL, forFunnel); ok {
+				slog.InfoCtx(r.Context(), "URL prefix denied",
+					"url", r.URL,
+					"prefixes", deniedPrefixes,
+					"forFunnel", forFunnel,
+				)
+				http.NotFound(w, r)
+				return
+			}
+		}
+
+		// Execute handler and return if we haven't denied this request and we have no
+		// allowed prefixes to look at.
+		if len(allowedPrefixes) == 0 {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
+		for _, prefix := range allowedPrefixes {
 			if ok, stripData := prefix.matches(r.URL, forFunnel); ok {
 				r2 := new(http.Request)
 				*r2 = *r
@@ -209,7 +229,7 @@ func matchPrefixes(prefixes []prefix, strip bool, forFunnel bool, handler http.H
 		}
 		slog.WarnCtx(r.Context(), "URL prefix not allowed",
 			"url", r.URL,
-			"prefixes", prefixes,
+			"prefixes", allowedPrefixes,
 			"forFunnel", forFunnel,
 		)
 		http.NotFound(w, r)
@@ -225,7 +245,7 @@ func (s *ValidTailnetSrv) mux(transport http.RoundTripper, forFunnel bool) http.
 	}
 	mux := http.NewServeMux()
 
-	mux.Handle("/", matchPrefixes(s.AllowedPrefixes, s.StripPrefix, forFunnel, proxy))
+	mux.Handle("/", matchPrefixes(s.AllowedPrefixes, s.DeniedPrefixes, s.StripPrefix, forFunnel, proxy))
 
 	return mux
 }
