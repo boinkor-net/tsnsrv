@@ -531,6 +531,7 @@ in {
             # systemd unit settings for the respective podman services:
             lib.mapAttrs' (name: sidecar: let
               serviceName = "${config.virtualisation.oci-containers.backend}-${name}";
+              stateDir = "tsnsrv/${config.virtualisation.oci-containers.backend}/${name}";
             in {
               name = serviceName;
               value = {
