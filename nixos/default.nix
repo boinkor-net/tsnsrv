@@ -470,7 +470,7 @@ in {
                     DynamicUser = true;
                     Restart = "always";
                     SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ service.supplementalGroups;
-                    StateDirectory = "tsnsrv-${name}";
+                    StateDirectory = "tsnsrv/${name}";
                     StateDirectoryMode = "0700";
                     LoadCredential = [
                       "authKey:${service.authKeyPath}"
@@ -491,6 +491,7 @@ in {
             inherit name;
             value = let
               serviceName = "${config.virtualisation.oci-containers.backend}-${name}";
+              stateDir = "tsnsrv/${config.virtualisation.oci-containers.backend}/${name}";
               credentialsDir = "/run/credentials/${serviceName}.service";
             in {
               imageFile = flake.packages.${pkgs.stdenv.targetPlatform.system}.tsnsrvOciImage;
@@ -501,7 +502,7 @@ in {
                 # The service's state dir; we have to infer /var/lib
                 # because the backends don't support using the
                 # $STATE_DIRECTORY environment variable in volume specs.
-                "/var/lib/${serviceName}:/state"
+                "/var/lib/${stateDir}:/state"
 
                 # Same for the service's credentials dir:
                 "${credentialsDir}:${credentialsDir}"
@@ -530,12 +531,13 @@ in {
             # systemd unit settings for the respective podman services:
             lib.mapAttrs' (name: sidecar: let
               serviceName = "${config.virtualisation.oci-containers.backend}-${name}";
+              stateDir = "tsnsrv/${config.virtualisation.oci-containers.backend}/${name}";
             in {
               name = serviceName;
               value = {
                 path = ["/run/wrappers"];
                 serviceConfig = {
-                  StateDirectory = serviceName;
+                  StateDirectory = stateDir;
                   StateDirectoryMode = "0700";
                   SupplementaryGroups = [config.users.groups.tsnsrv.name] ++ sidecar.service.supplementalGroups;
                   LoadCredential = [
