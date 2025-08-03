@@ -94,7 +94,7 @@ in
       machine.wait_for_unit("headscale.service", timeout=30)
       machine.wait_until_succeeds("headscale users list", timeout=90)
       machine.succeed("headscale users create machine")
-      machine.succeed("headscale preauthkeys create --reusable -e 24h -u machine > /run/ts-authkey")
+      machine.succeed("headscale preauthkeys create --reusable -e 24h -u 1 > /run/ts-authkey")
       machine.succeed("tailscale-up-for-tests", timeout=30)
       import time
       import json
