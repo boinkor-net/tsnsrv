@@ -17,6 +17,7 @@ in
         settings = {
           ip_prefixes = ["100.64.0.0/10"];
           dns.magic_dns = false;
+          dns.override_local_dns = false;
           derp.server = {
             enabled = true;
             region_id = 999;
@@ -121,7 +122,7 @@ in
       headscale.wait_for_unit("headscale.service", timeout=30)
       headscale.wait_until_succeeds("headscale users list", timeout=90)
       headscale.succeed("headscale users create machine")
-      authkey = headscale.succeed("headscale preauthkeys create --reusable -e 24h -u machine")
+      authkey = headscale.succeed("headscale preauthkeys create --reusable -e 24h -u 1")
       with open("authkey", "w") as k:
           k.write(authkey)
 
