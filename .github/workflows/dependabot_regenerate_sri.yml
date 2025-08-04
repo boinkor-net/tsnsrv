@@ -39,7 +39,7 @@ jobs:
         working-directory: "."
 
       - name: Push changes to ${{github.base_ref}}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v6
         with:
           commit_message: "Update gomod SRI hash"
           file_pattern: "*.sri"
