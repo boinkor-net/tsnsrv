@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: samueldr/lix-gha-installer-action@latest
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Determine whether to push
         id: docker_pushable

@@ -22,7 +22,7 @@ jobs:
           private_key: ${{ secrets.PR_FIXUP_APP_PRIVATE_KEY }}
           permissions: >-
             {"contents": "write"}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           token: ${{steps.generate_token.outputs.token}}
@@ -39,7 +39,7 @@ jobs:
         working-directory: "."
 
       - name: Push changes to ${{github.base_ref}}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v6
         with:
           commit_message: "Update gomod SRI hash"
           file_pattern: "*.sri"

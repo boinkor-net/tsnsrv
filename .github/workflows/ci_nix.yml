@@ -6,7 +6,7 @@ jobs:
   nix_fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: boinkor-net/ci-baseline-nix/actions/setup@main
         with:
           tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
@@ -23,7 +23,7 @@ jobs:
   nix_flake_safety:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: boinkor-net/ci-baseline-nix/actions/setup@main
         with:
           tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
@@ -40,7 +40,7 @@ jobs:
   nix_test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: boinkor-net/ci-baseline-nix/actions/setup@main
         with:
           tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
@@ -60,7 +60,7 @@ jobs:
         derivation: ["","tsnsrvOciImage"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: boinkor-net/ci-baseline-nix/actions/setup@main
         with:
           tailnet_client_id: ${{ secrets.TAILSCALE_CI_CLIENT_ID }}
