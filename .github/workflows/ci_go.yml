@@ -6,7 +6,7 @@ jobs:
   go_lints:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: boinkor-net/ci-baseline-go/actions/lint@main
         with:
           go_version: ""
@@ -14,7 +14,7 @@ jobs:
   go_tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: boinkor-net/ci-baseline-go/actions/test@main
         with:
           go_version: ""
@@ -25,7 +25,7 @@ jobs:
         build_target: ["."]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: boinkor-net/ci-baseline-go/actions/build@main
         with:
           subdir: ${{matrix.build_target}}
