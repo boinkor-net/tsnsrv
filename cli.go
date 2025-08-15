@@ -153,6 +153,7 @@ type TailnetSrv struct {
 	ServePlaintext                    bool
 	Timeout                           time.Duration
 	AllowedPrefixes                   prefixes
+	DeniedPrefixes                    prefixes
 	StripPrefix                       bool
 	StateDir                          string
 	AuthkeyPath                       string
@@ -194,6 +195,7 @@ func TailnetSrvFromArgs(args []string) (*ValidTailnetSrv, *ffcli.Command, error)
 	fs.BoolVar(&s.ServePlaintext, "plaintext", false, "Serve plaintext HTTP without TLS")
 	fs.DurationVar(&s.Timeout, "timeout", 1*time.Minute, "Timeout connecting to the tailnet")
 	fs.Var(&s.AllowedPrefixes, "prefix", "Allowed URL prefixes; if none is set, all prefixes are allowed")
+	fs.Var(&s.DeniedPrefixes, "denyPrefix", "Denied URL prefixes; if none is set, no prefixes are denied")
 	fs.BoolVar(&s.StripPrefix, "stripPrefix", true, "Strip prefixes that matched; best set to false if allowing multiple prefixes")
 	fs.StringVar(&s.StateDir, "stateDir", os.Getenv("TS_STATE_DIR"), "Directory containing the persistent tailscale status files. Can also be set by $TS_STATE_DIR; this option takes precedence.")
 	fs.StringVar(&s.AuthkeyPath, "authkeyPath", "", "File containing a tailscale auth key. Key is assumed to be in $TS_AUTHKEY in absence of this option.")
@@ -343,8 +345,13 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 	}
 	s.client, err = srv.LocalClient()
 	if err != nil {
-		if slices.ContainsFunc(s.AllowedPrefixes, func(p prefix) bool { return p.matchIf != matchEither }) {
-			return fmt.Errorf("-prefix rules with a provenance (tailnet: or funnel:) require that a local tailscale client is available: %w", err)
+		prefixHasProvenance := func(p prefix) bool { return p.matchIf != matchEither }
+		const errMsg = "%s rules with a provenance (tailnet: or funnel:) require that a local tailscale client is available %w"
+		if slices.ContainsFunc(s.AllowedPrefixes, prefixHasProvenance) {
+			return fmt.Errorf(errMsg, "-prefix", err)
+		}
+		if slices.ContainsFunc(s.DeniedPrefixes, prefixHasProvenance) {
+			return fmt.Errorf(errMsg, "-denyPrefix", err)
 		}
 		slog.Warn("could not get a local tailscale client. Whois headers will not work.",
 			"error", err,
@@ -397,6 +404,7 @@ func (s *ValidTailnetSrv) Run(ctx context.Context) error {
 		"listenAddr", s.ListenAddr,
 		"tags", s.Tags,
 		"prefixes", s.AllowedPrefixes,
+		"deniedPrefixes", s.DeniedPrefixes,
 		"destURL", s.DestURL,
 		"plaintext", s.ServePlaintext,
 		"funnel", s.Funnel,
