@@ -44,7 +44,7 @@ type proxyContext struct {
 }
 
 func (c *proxyContext) observeResponse(res *http.Response) {
-	elapsed := time.Now().Sub(c.start)
+	elapsed := time.Since(c.start)
 	requestDurations.Observe(float64(elapsed))
 
 	statusClass := fmt.Sprintf("%dxx", res.StatusCode/100)
