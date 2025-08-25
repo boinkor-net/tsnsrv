@@ -22,7 +22,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/exp/slog"
 	"golang.org/x/oauth2/clientcredentials"
-	"tailscale.com/client/tailscale"
+	"tailscale.com/client/local"
+	"tailscale.com/client/tailscale/v2"
 	"tailscale.com/tsnet"
 	"tailscale.com/types/logger"
 )
@@ -174,7 +175,7 @@ type TailnetSrv struct {
 type ValidTailnetSrv struct {
 	TailnetSrv
 	DestURL *url.URL
-	client  *tailscale.LocalClient
+	client  *local.Client
 }
 
 // TailnetSrvFromArgs constructs a validated tailnet service from commandline arguments.
@@ -285,33 +286,31 @@ func (s *ValidTailnetSrv) authkeyFromFile(ctx context.Context, path string) (str
 }
 
 func (s *ValidTailnetSrv) mintAuthKey(ctx context.Context, authkey string) (string, error) {
-	tailscale.I_Acknowledge_This_API_Is_Unstable = true // needed in order to use API clients.
-
 	baseURL := cmp.Or(os.Getenv("TS_BASE_URL"), "https://api.tailscale.com")
-	tsClient := tailscale.NewClient("-", nil)
-	tsClient.BaseURL = baseURL
+	tsClient := tailscale.Client{}
+	var err error
+	tsClient.BaseURL, err = url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("could not parse base URL %v: %w", baseURL, err)
+	}
 	credentials := clientcredentials.Config{
 		ClientID:     "some-client-id", // ignored
 		ClientSecret: authkey,
-		TokenURL:     tsClient.BaseURL + "/api/v2/oauth/token",
+		TokenURL:     baseURL + "/api/v2/oauth/token",
 	}
 
-	tsClient.HTTPClient = credentials.Client(ctx)
-	caps := tailscale.KeyCapabilities{
-		Devices: tailscale.KeyDeviceCapabilities{
-			Create: tailscale.KeyDeviceCreateCapabilities{
-				Reusable:  false,
-				Tags:      s.Tags,
-				Ephemeral: s.Ephemeral,
-			},
-		},
-	}
+	tsClient.HTTP = credentials.Client(ctx)
+	caps := tailscale.KeyCapabilities{}
+	caps.Devices.Create.Reusable = false
+	caps.Devices.Create.Tags = s.Tags
+	caps.Devices.Create.Ephemeral = s.Ephemeral
 
-	authkey, _, err := tsClient.CreateKey(ctx, caps)
+	kr := tailscale.KeysResource{Client: &tsClient}
+	created, err := kr.Create(ctx, tailscale.CreateKeyRequest{Capabilities: caps})
 	if err != nil {
 		return "", fmt.Errorf("minting a tailscale pre-authenticated key for tags %v: %w", s.Tags, err)
 	}
-	return authkey, nil
+	return created.Key, nil
 }
 
 func (s *ValidTailnetSrv) Run(ctx context.Context) error {

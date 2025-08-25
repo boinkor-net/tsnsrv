@@ -9,6 +9,7 @@ require (
 	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
 	golang.org/x/oauth2 v0.30.0
 	tailscale.com v1.86.5
+	tailscale.com/client/tailscale/v2 v2.0.0-20250820140259-740bf1718a90
 )
 
 require (
