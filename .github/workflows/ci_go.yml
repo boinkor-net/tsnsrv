@@ -30,5 +30,3 @@ jobs:
         with:
           subdir: ${{matrix.build_target}}
           go_version: ""
-
-
