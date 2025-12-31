@@ -221,6 +221,7 @@ func (s *ValidTailnetSrv) mux(transport http.RoundTripper, forFunnel bool) http.
 		Rewrite:        s.rewrite,
 		ModifyResponse: s.modifyResponse,
 		ErrorHandler:   s.errorHandler,
+		FlushInterval:  -1,
 		Transport:      transport,
 	}
 	mux := http.NewServeMux()
