@@ -24,7 +24,7 @@
         ...
       }: let
         tsnsrvPkg = p: subPackage:
-          p.buildGo124Module {
+          p.buildGo126Module {
             pname = builtins.baseNameOf subPackage;
             version = "0.0.0";
             vendorHash = builtins.readFile ./tsnsrv.sri;

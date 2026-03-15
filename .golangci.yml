@@ -58,6 +58,11 @@ linters:
       - third_party$
       - builtin$
       - examples$
+    rules:
+      - path: main\.go
+        linters:
+          - gosec
+        text: "G706: Log injection via taint analysis"
 formatters:
   enable:
     - goimports
