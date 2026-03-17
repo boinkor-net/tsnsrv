@@ -162,6 +162,7 @@ type TailnetSrv struct {
 	WhoisTimeout                      time.Duration
 	SuppressWhois                     bool
 	PrometheusAddr                    string
+	EnableBugReports                  bool
 	UpstreamHeaders                   headers
 	SuppressTailnetDialer             bool
 	ReadHeaderTimeout                 time.Duration
@@ -203,6 +204,7 @@ func TailnetSrvFromArgs(args []string) (*ValidTailnetSrv, *ffcli.Command, error)
 	fs.DurationVar(&s.WhoisTimeout, "whoisTimeout", 1*time.Second, "Maximum amount of time to spend looking up client identities")
 	fs.BoolVar(&s.SuppressWhois, "suppressWhois", false, "Do not set X-Tailscale-User-* headers in upstream requests")
 	fs.StringVar(&s.PrometheusAddr, "prometheusAddr", ":9099", "Serve prometheus metrics from this address. Empty string to disable.")
+	fs.BoolVar(&s.EnableBugReports, "enableBugReports", false, "Allow POST /bugreport on the prometheus address to submit debug logs to the Tailscale API")
 	fs.Var(&s.UpstreamHeaders, "upstreamHeader", "Additional headers (separated by ': ') on requests to upstream.")
 	fs.BoolVar(&s.SuppressTailnetDialer, "suppressTailnetDialer", false, "Whether to use the stdlib net.Dialer instead of a tailnet-enabled one")
 	fs.DurationVar(&s.ReadHeaderTimeout, "readHeaderTimeout", 0, "Amount of time to allow for reading HTTP request headers. 0 will disable the timeout but expose the service to the slowloris attack.")
@@ -458,6 +460,20 @@ func (s *ValidTailnetSrv) setupPrometheus(srv *tsnet.Server) error {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
+	if s.EnableBugReports {
+		mux.HandleFunc("POST /bugreport", func(w http.ResponseWriter, r *http.Request) {
+			lcl, err := srv.LocalClient()
+			if err != nil {
+				slog.Error("failed to retrieve local tailscale client", "error", err)
+			}
+			reportID, err := lcl.BugReport(r.Context(), "")
+			if err != nil {
+				slog.Error("failed to submit bug report logs to tailscale API", "error", err)
+			}
+			slog.Info("Submitted bug report logs to tailscale API", "report", reportID)
+			_, _ = w.Write([]byte(reportID))
+		})
+	}
 	listener, err := srv.Listen("tcp", s.PrometheusAddr)
 	if err != nil {
 		return fmt.Errorf("could not listen on prometheus address %v: %w", s.PrometheusAddr, err)
