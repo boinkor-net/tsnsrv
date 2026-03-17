@@ -114,3 +114,18 @@ Once you have a oauth client (and a command line) with these
 requirements, all you need to do is to use the client _secret_ (the
 client ID is irrelevant for us) as the tailscale auth key and tsnsrv
 will do the rest.
+
+### Submitting tailscale bug reports
+
+If you run into issues that look like bugs in the tailscale service or the
+tsnet library itself, you might want to submit a tailscale bug report. That 
+can be done with the following steps:
+
+1. Turn on the tsnsrv `-enableBugReports` flag
+2. POST to `/bugreport` on the prometheus API endpoint:
+   `curl -X POST http://your-tsnsrv-instance-name.your-tailnet.ts.net:9099/bugreport`
+   (making sure to replace `your-tsnsrv-instance` and `your-tailnet` and `9099` 
+   with the names of your tsnsrv service, your tailnet name and your prometheusAddr port).
+3. `curl` will return a bug report ID and tsnsrv will log the report ID at INFO level.
+   When you file a tailscale bug, include any relevant report IDs you generated so they
+   can check your debug logs.
