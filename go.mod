@@ -8,7 +8,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
 	golang.org/x/oauth2 v0.36.0
-	tailscale.com v1.102.1
+	tailscale.com v1.102.2
 	tailscale.com/client/tailscale/v2 v2.9.0
 )
 
