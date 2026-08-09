@@ -47,12 +47,16 @@ in
             region_id = 999;
             stun_listen_addr = "0.0.0.0:${toString stunPort}";
           };
+          derp.urls = [];
         };
       };
       services.tailscale.enable = true;
       systemd.services.tailscaled.serviceConfig.Environment = ["TS_NO_LOGS_NO_SUPPORT=true"];
       networking.firewall = {
-        allowedTCPPorts = [80 443];
+        allowedTCPPorts = [
+          80
+          443
+        ];
         allowedUDPPorts = [stunPort];
       };
 

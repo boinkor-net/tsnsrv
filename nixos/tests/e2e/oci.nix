@@ -23,11 +23,15 @@ in
             region_id = 999;
             stun_listen_addr = "0.0.0.0:${toString stunPort}";
           };
+          derp.urls = [];
           server_url = "http://headscale:8080";
         };
       };
       networking.firewall = {
-        allowedTCPPorts = [8080 443];
+        allowedTCPPorts = [
+          8080
+          443
+        ];
         allowedUDPPorts = [stunPort];
       };
     };
@@ -90,10 +94,19 @@ in
             created = "now";
             copyToRoot = pkgs.buildEnv {
               name = "image-root";
-              paths = [pkgs.static-web-server htmlRoot];
+              paths = [
+                pkgs.static-web-server
+                htmlRoot
+              ];
               pathsToLink = ["/bin"];
             };
-            config.Cmd = ["/bin/static-web-server" "--port" "3000" "--root" htmlRoot];
+            config.Cmd = [
+              "/bin/static-web-server"
+              "--port"
+              "3000"
+              "--root"
+              htmlRoot
+            ];
           };
         };
       };
