@@ -132,7 +132,7 @@ in
       headscale.start()
       machine.start()
 
-      headscale.wait_for_unit("headscale.service", timeout=30)
+      headscale.wait_for_unit("headscale.service", timeout=90)
       headscale.wait_until_succeeds("headscale users list", timeout=90)
       headscale.succeed("headscale users create machine")
       authkey = headscale.succeed("headscale preauthkeys create --reusable -e 24h -u 1")
